@@ -1,4 +1,5 @@
 import { linkStudentByCodeAction } from '@/app/actions/students';
+import { PendingSubmitButton } from '@/components/pending-submit-button';
 
 export function LinkStudentForm() {
   return (
@@ -15,9 +16,12 @@ export function LinkStudentForm() {
           className="w-full rounded-xl border border-slate-300 px-4 py-3 uppercase"
         />
       </div>
-      <button type="submit" className="rounded-xl bg-sky-700 px-4 py-3 font-semibold text-white hover:bg-sky-800">
+      <PendingSubmitButton
+        pendingLabel="Vinculando..."
+        className="rounded-xl bg-sky-700 px-4 py-3 font-semibold text-white hover:bg-sky-800 disabled:cursor-not-allowed disabled:bg-sky-300"
+      >
         Vincular estudiante
-      </button>
+      </PendingSubmitButton>
     </form>
   );
 }

@@ -4,12 +4,16 @@ import Link from 'next/link';
 import { useActionState, useEffect, useState } from 'react';
 
 import { signInAction } from '@/app/actions/auth';
+import { FeedbackToast } from '@/components/feedback-toast';
 import { INITIAL_FORM_STATE } from '@/lib/types';
 
 export function LoginForm() {
   const [state, formAction, pending] = useActionState(signInAction, INITIAL_FORM_STATE);
   const [rememberMe, setRememberMe] = useState(false);
   const [email, setEmail] = useState('');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastAttempt, setToastAttempt] = useState(0);
+  const [submitAttempt, setSubmitAttempt] = useState(0);
 
   useEffect(() => {
     const savedEmail = window.localStorage.getItem('validgate-remembered-email');
@@ -19,7 +23,16 @@ export function LoginForm() {
     }
   }, []);
 
+  useEffect(() => {
+    if (pending || state.success || !state.message) return;
+
+    setToastAttempt(submitAttempt);
+    setToastMessage(state.message);
+  }, [pending, state.message, state.success, submitAttempt]);
+
   function handleSubmit() {
+    setSubmitAttempt((current) => current + 1);
+
     if (rememberMe && email) {
       window.localStorage.setItem('validgate-remembered-email', email);
       return;
@@ -76,7 +89,12 @@ export function LoginForm() {
         </Link>
       </div>
 
-      {state.message ? <p className="text-sm text-rose-700">{state.message}</p> : null}
+      <FeedbackToast
+        key={toastAttempt}
+        message={toastMessage}
+        tone="danger"
+        title="Login"
+      />
 
       <button
         type="submit"

@@ -1,14 +1,17 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useFormStatus } from 'react-dom';
 
 import { recordAccessEventAction } from '@/app/actions/access';
+import type { AccessPolicy } from '@/lib/types';
 
 type StudentOption = {
   id: number;
   first_name: string;
   last_name: string;
   is_in_institution: boolean;
+  can_leave_alone: boolean;
   course_id: number | null;
 };
 
@@ -18,13 +21,72 @@ type CourseOption = {
 };
 
 type SearchMode = 'student' | 'course';
+type ContingencyMode = 'NORMAL' | 'CONTINGENCIA_SIN_DISPOSITIVO';
+type ContingencyReason =
+  | 'SIN_DISPOSITIVO'
+  | 'NO_CELULAR'
+  | 'SIN_BATERIA'
+  | 'QR_NO_DISPONIBLE'
+  | 'CAMARA_NO_DISPONIBLE'
+  | 'JARDIN_INFANTIL'
+  | 'OTRO';
+
+const CONTINGENCY_REASON_OPTIONS: Array<{ value: ContingencyReason; label: string }> = [
+  { value: 'SIN_DISPOSITIVO', label: 'Sin dispositivo propio' },
+  { value: 'NO_CELULAR', label: 'Sin celular' },
+  { value: 'SIN_BATERIA', label: 'Celular sin bateria' },
+  { value: 'QR_NO_DISPONIBLE', label: 'QR no disponible' },
+  { value: 'CAMARA_NO_DISPONIBLE', label: 'Camara no disponible' },
+  { value: 'JARDIN_INFANTIL', label: 'Estudiante de jardin infantil' },
+  { value: 'OTRO', label: 'Otro motivo' },
+];
+
+const EVENT_OPTIONS = {
+  INGRESO: { value: 'INGRESO', label: 'Entrada' },
+  SALIDA: { value: 'SALIDA', label: 'Salida' },
+} as const;
+
+function SubmitButton({ disabled }: { disabled: boolean }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      disabled={disabled || pending}
+      aria-busy={pending}
+      className="rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+    >
+      {pending ? 'Registrando evento...' : 'Registrar evento'}
+    </button>
+  );
+}
+
+function RequiredMark() {
+  return (
+    <span className="ml-1 text-red-600" style={{ color: '#dc2626' }} aria-hidden="true">
+      *
+    </span>
+  );
+}
+
+function fieldLabelClass(hasError: boolean) {
+  return `mb-2 block text-sm font-medium ${hasError ? 'text-red-700' : 'text-slate-700'}`;
+}
+
+function fieldClass(hasError: boolean) {
+  return `w-full rounded-xl border px-4 py-3 disabled:cursor-not-allowed disabled:bg-slate-100 ${
+    hasError ? 'border-red-500 text-red-900 focus:border-red-500 focus:ring-red-500' : 'border-slate-300'
+  }`;
+}
 
 export function RecordAccessForm({
   students,
   courses,
+  accessPolicy,
 }: {
   students: StudentOption[];
   courses: CourseOption[];
+  accessPolicy: AccessPolicy;
 }) {
   const [searchMode, setSearchMode] = useState<SearchMode>('student');
 
@@ -37,6 +99,8 @@ export function RecordAccessForm({
 
   const [eventType, setEventType] = useState('');
   const [validationKind, setValidationKind] = useState('');
+  const [contingencyMode, setContingencyMode] = useState<ContingencyMode>('NORMAL');
+  const [contingencyReason, setContingencyReason] = useState<ContingencyReason | ''>('');
   const [result, setResult] = useState('');
   const [exitKind, setExitKind] = useState('');
   const [notes, setNotes] = useState('');
@@ -121,6 +185,52 @@ export function RecordAccessForm({
         : 0
       : selectedCourseStudentIds.length;
 
+  const selectedStudent = useMemo(
+    () => students.find((student) => String(student.id) === selectedStudentId) ?? null,
+    [selectedStudentId, students],
+  );
+
+  const selectedCourseStudents = useMemo(
+    () =>
+      students.filter((student) => selectedCourseStudentIds.includes(String(student.id))),
+    [selectedCourseStudentIds, students],
+  );
+
+  const selectedStudentsForRules =
+    searchMode === 'student'
+      ? selectedStudent
+        ? [selectedStudent]
+        : []
+      : selectedCourseStudents;
+
+  const hasSelection = selectedStudentsForRules.length > 0;
+  const selectedStudentsInsideCount = selectedStudentsForRules.filter(
+    (student) => student.is_in_institution,
+  ).length;
+  const selectedStudentsOutsideCount =
+    selectedStudentsForRules.length - selectedStudentsInsideCount;
+  const hasOnlyInsideStudents = hasSelection && selectedStudentsOutsideCount === 0;
+  const hasOnlyOutsideStudents = hasSelection && selectedStudentsInsideCount === 0;
+
+  const availableEventOptions = useMemo(() => {
+    if (!hasSelection) return [];
+    if (hasOnlyInsideStudents) return [EVENT_OPTIONS.SALIDA];
+    if (hasOnlyOutsideStudents) return [EVENT_OPTIONS.INGRESO];
+    return [EVENT_OPTIONS.INGRESO, EVENT_OPTIONS.SALIDA];
+  }, [hasOnlyInsideStudents, hasOnlyOutsideStudents, hasSelection]);
+
+  const authenticatorPresented = validationKind === 'QR' || validationKind === 'PIN';
+  const usingContingency = contingencyMode === 'CONTINGENCIA_SIN_DISPOSITIVO';
+  const currentEventPolicy = eventType === 'INGRESO'
+    ? {
+        requiresAuthenticator: accessPolicy.entry_requires_authenticator,
+        authenticatorIsExclusive: accessPolicy.entry_authenticator_is_exclusive,
+      }
+    : {
+        requiresAuthenticator: accessPolicy.exit_requires_authenticator,
+        authenticatorIsExclusive: accessPolicy.exit_authenticator_is_exclusive,
+      };
+
   useEffect(() => {
     if (searchMode !== 'student') return;
 
@@ -173,6 +283,45 @@ export function RecordAccessForm({
   }, [eventType]);
 
   useEffect(() => {
+    if (!hasSelection) {
+      setEventType('');
+      setValidationKind('');
+      setContingencyMode('NORMAL');
+      setContingencyReason('');
+      setResult('');
+      setExitKind('');
+      return;
+    }
+
+    if (availableEventOptions.length === 1) {
+      const nextEventType = availableEventOptions[0].value;
+      if (eventType !== nextEventType) {
+        setEventType(nextEventType);
+      }
+      return;
+    }
+
+    if (
+      eventType &&
+      !availableEventOptions.some((option) => option.value === eventType)
+    ) {
+      setEventType('');
+    }
+  }, [availableEventOptions, eventType, hasSelection]);
+
+  useEffect(() => {
+    if (validationKind === 'MANUAL') {
+      setContingencyMode('CONTINGENCIA_SIN_DISPOSITIVO');
+      return;
+    }
+
+    if (validationKind !== 'MANUAL') {
+      setContingencyMode('NORMAL');
+      setContingencyReason('');
+    }
+  }, [validationKind]);
+
+  useEffect(() => {
     const onClickOutside = (event: MouseEvent) => {
       if (!suggestionsRef.current) return;
       if (!suggestionsRef.current.contains(event.target as Node)) {
@@ -217,12 +366,59 @@ export function RecordAccessForm({
       nextWarnings.push('Debes seleccionar un metodo de validacion.');
     }
 
+    if (contingencyMode === 'CONTINGENCIA_SIN_DISPOSITIVO' && validationKind !== 'MANUAL') {
+      nextWarnings.push('La contingencia sin dispositivo solo se usa con validacion manual.');
+    }
+
+    if (contingencyMode === 'CONTINGENCIA_SIN_DISPOSITIVO' && !contingencyReason) {
+      nextWarnings.push('Debes seleccionar un motivo de contingencia.');
+    }
+
+    if (contingencyMode === 'CONTINGENCIA_SIN_DISPOSITIVO' && !notes.trim()) {
+      nextWarnings.push('Debes registrar una observacion para la contingencia.');
+    }
+
     if (!result) {
       nextWarnings.push('Debes seleccionar un resultado.');
     }
 
     if (eventType === 'SALIDA' && !exitKind) {
       nextWarnings.push('Debes seleccionar un tipo de salida.');
+    }
+
+    if (
+      eventType &&
+      currentEventPolicy.requiresAuthenticator &&
+      currentEventPolicy.authenticatorIsExclusive &&
+      !authenticatorPresented
+    ) {
+      nextWarnings.push('La configuracion exige QR o PIN para este evento.');
+    }
+
+    if (
+      eventType === 'SALIDA' &&
+      accessPolicy.exit_requires_authenticator &&
+      accessPolicy.exit_requires_observation_without_authenticator &&
+      !authenticatorPresented &&
+      !notes.trim()
+    ) {
+      nextWarnings.push('Agrega una observacion para justificar una salida sin QR o PIN.');
+    }
+
+    const studentsToCheck = selectedStudentsForRules;
+
+    if (eventType === 'INGRESO' && studentsToCheck.some((student) => student.is_in_institution)) {
+      nextWarnings.push('Hay estudiante(s) que ya figuran dentro de la institucion.');
+    }
+
+    if (eventType === 'SALIDA') {
+      if (studentsToCheck.some((student) => !student.is_in_institution)) {
+        nextWarnings.push('Hay estudiante(s) sin ingreso activo para registrar salida.');
+      }
+
+      if (exitKind === 'SOLO' && studentsToCheck.some((student) => !student.can_leave_alone)) {
+        nextWarnings.push('Hay estudiante(s) que no estan autorizados para salir solos.');
+      }
     }
 
     setWarnings(nextWarnings);
@@ -245,18 +441,78 @@ export function RecordAccessForm({
     validateForm();
   };
 
-  const summaryMessage =
-    searchMode === 'student'
+  const selectedStudentNames = selectedStudentsForRules.map(
+    (student) => `${student.first_name} ${student.last_name}`,
+  );
+
+  const selectedStudentSummary =
+    selectedStudentNames.length === 1
+      ? selectedStudentNames[0]
+      : selectedStudentNames.length > 1
+        ? `${selectedStudentNames.length} estudiantes seleccionados`
+        : '';
+
+  const resultSummary = result === 'APROBADO'
+    ? 'APRUEBA'
+    : result === 'RECHAZADO'
+      ? 'RECHAZA'
+      : '';
+
+  const eventSummary = eventType === 'INGRESO'
+    ? 'ENTRADA'
+    : eventType === 'SALIDA'
+      ? 'SALIDA'
+      : '';
+
+  const validationSummary = validationKind === 'MANUAL'
+    ? 'REGISTRO MANUAL'
+    : validationKind;
+
+  const summaryHasRequiredFields =
+    hasSelection &&
+    Boolean(resultSummary) &&
+    Boolean(eventSummary) &&
+    Boolean(validationSummary) &&
+    (eventType !== 'SALIDA' || Boolean(exitKind)) &&
+    (contingencyMode !== 'CONTINGENCIA_SIN_DISPOSITIVO' ||
+      Boolean(contingencyReason));
+
+  const summaryMessage = summaryHasRequiredFields
+    ? [
+        `Se ${resultSummary} ${eventSummary} para ${selectedStudentSummary} mediante ${validationSummary}.`,
+        contingencyMode === 'CONTINGENCIA_SIN_DISPOSITIVO' ? 'Contingencia: Dispositivo.' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')
+    : searchMode === 'student'
       ? selectedStudentId
-        ? 'Se registrara el evento para 1 estudiante.'
+        ? 'Completa la informacion obligatoria para generar el resumen de seleccion.'
         : 'Debes seleccionar un estudiante.'
       : selectedCount > 0
-        ? `Se registrara el evento para ${selectedCount} estudiante(s) del curso.`
+        ? 'Completa la informacion obligatoria para generar el resumen de seleccion.'
         : 'Debes seleccionar al menos un estudiante del curso.';
 
   const summaryIsWarning =
-    (searchMode === 'student' && !selectedStudentId) ||
-    (searchMode === 'course' && selectedCount === 0);
+    !summaryHasRequiredFields;
+
+  const studentIsMissing = searchMode === 'student' ? !selectedStudentId : selectedCourseStudentIds.length === 0;
+  const courseIsMissing = searchMode === 'course' && !courseId;
+  const eventIsMissing = !eventType;
+  const exitKindIsMissing = eventType !== 'INGRESO' && !exitKind;
+  const validationKindIsMissing = !validationKind;
+  const contingencyModeIsMissing = validationKind === 'MANUAL' && contingencyMode !== 'CONTINGENCIA_SIN_DISPOSITIVO';
+  const contingencyReasonIsMissing = contingencyMode === 'CONTINGENCIA_SIN_DISPOSITIVO' && !contingencyReason;
+  const resultIsMissing = !result;
+
+  const requiredFieldsAreComplete =
+    !studentIsMissing &&
+    !courseIsMissing &&
+    !eventIsMissing &&
+    !exitKindIsMissing &&
+    !validationKindIsMissing &&
+    !contingencyModeIsMissing &&
+    !contingencyReasonIsMissing &&
+    !resultIsMissing;
 
   return (
     <form
@@ -307,17 +563,6 @@ export function RecordAccessForm({
           </div>
         </div>
       </div>
-
-      {warnings.length > 0 ? (
-        <div className="md:col-span-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <p className="font-semibold">Atencion</p>
-          <ul className="mt-2 list-disc space-y-1 pl-5">
-            {warnings.map((warning) => (
-              <li key={warning}>{warning}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
 
       {searchMode === 'student' ? (
         <>
@@ -371,8 +616,9 @@ export function RecordAccessForm({
           </div>
 
           <div className="md:col-span-2">
-            <label htmlFor="student_id" className="mb-2 block text-sm font-medium text-slate-700">
+            <label htmlFor="student_id" className={fieldLabelClass(studentIsMissing)}>
               Estudiante
+              <RequiredMark />
             </label>
             <select
               id="student_id"
@@ -384,7 +630,7 @@ export function RecordAccessForm({
               }}
               onKeyDown={handleBlockedEnter}
               disabled={!hasStudents}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 disabled:cursor-not-allowed disabled:bg-slate-100"
+              className={fieldClass(studentIsMissing)}
             >
               <option value="">Selecciona un estudiante</option>
               {visibleStudents.map((student) => (
@@ -403,8 +649,9 @@ export function RecordAccessForm({
       ) : (
         <>
           <div>
-            <label htmlFor="course_id" className="mb-2 block text-sm font-medium text-slate-700">
+            <label htmlFor="course_id" className={fieldLabelClass(courseIsMissing)}>
               Cursos
+              <RequiredMark />
             </label>
             <select
               id="course_id"
@@ -415,7 +662,7 @@ export function RecordAccessForm({
                 setWarnings([]);
               }}
               onKeyDown={handleBlockedEnter}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3"
+              className={fieldClass(courseIsMissing)}
             >
               <option value="">Selecciona un curso</option>
               {courses.map((course) => (
@@ -442,7 +689,11 @@ export function RecordAccessForm({
             />
           </div>
 
-          <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div
+            className={`md:col-span-2 rounded-2xl border bg-slate-50 p-4 ${
+              studentIsMissing ? 'border-red-500' : 'border-slate-200'
+            }`}
+          >
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="font-medium text-slate-900">Listado de estudiantes del curso</p>
@@ -518,8 +769,9 @@ export function RecordAccessForm({
       <input type="hidden" name="selection_mode" value={searchMode} />
 
       <div>
-        <label htmlFor="event_type" className="mb-2 block text-sm font-medium text-slate-700">
+        <label htmlFor="event_type" className={fieldLabelClass(eventIsMissing)}>
           Evento
+          <RequiredMark />
         </label>
         <select
           id="event_type"
@@ -530,51 +782,76 @@ export function RecordAccessForm({
             setWarnings([]);
           }}
           onKeyDown={handleBlockedEnter}
-          className="w-full rounded-xl border border-slate-300 px-4 py-3"
+          disabled={!hasSelection}
+          className={fieldClass(eventIsMissing)}
         >
-          <option value="">Selecciona un evento</option>
-          <option value="INGRESO">Ingreso</option>
-          <option value="SALIDA">Salida</option>
+          {!hasSelection || availableEventOptions.length !== 1 ? (
+            <option value="">
+              {hasSelection ? 'Selecciona un evento' : 'Selecciona un estudiante primero'}
+            </option>
+          ) : null}
+          {availableEventOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </select>
       </div>
 
+      {eventType !== 'INGRESO' ? (
+        <div>
+          <label htmlFor="exit_kind" className={fieldLabelClass(exitKindIsMissing)}>
+            Tipo salida
+            <RequiredMark />
+          </label>
+
+          {!hasSelection ? (
+            <select
+              id="exit_kind"
+              name="exit_kind"
+              defaultValue=""
+              disabled
+              className={fieldClass(exitKindIsMissing)}
+            >
+              <option value="">Selecciona un estudiante primero</option>
+            </select>
+          ) : eventType === 'SALIDA' ? (
+            <select
+              id="exit_kind"
+              name="exit_kind"
+              value={exitKind}
+              onChange={(event) => {
+                setExitKind(event.target.value);
+                setWarnings([]);
+              }}
+              onKeyDown={handleBlockedEnter}
+              disabled={!hasSelection}
+              className={fieldClass(exitKindIsMissing)}
+            >
+              <option value="">Selecciona un tipo de salida</option>
+              <option value="REGULAR">Regular</option>
+              <option value="RETIRO_AUTORIZADO">Retiro autorizado</option>
+              <option value="SOLO">Salida por voluntad del estudiante</option>
+            </select>
+          ) : (
+            <>
+              <input type="hidden" name="exit_kind" value="" />
+              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                Selecciona un estudiante para habilitar este campo.
+              </div>
+            </>
+          )}
+
+          <p className="mt-2 text-xs text-slate-500">{helperText}</p>
+        </div>
+      ) : (
+        <input type="hidden" name="exit_kind" value="" />
+      )}
+
       <div>
-        <label htmlFor="exit_kind" className="mb-2 block text-sm font-medium text-slate-700">
-          Tipo salida
-        </label>
-
-        {eventType === 'SALIDA' ? (
-          <select
-            id="exit_kind"
-            name="exit_kind"
-            value={exitKind}
-            onChange={(event) => {
-              setExitKind(event.target.value);
-              setWarnings([]);
-            }}
-            onKeyDown={handleBlockedEnter}
-            className="w-full rounded-xl border border-slate-300 px-4 py-3"
-          >
-            <option value="">Selecciona un tipo de salida</option>
-            <option value="REGULAR">Regular</option>
-            <option value="RETIRO_AUTORIZADO">Retiro autorizado</option>
-            <option value="SOLO">Salida por voluntad del estudiante</option>
-          </select>
-        ) : (
-          <>
-            <input type="hidden" name="exit_kind" value="" />
-            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-              No aplica para eventos de ingreso.
-            </div>
-          </>
-        )}
-
-        <p className="mt-2 text-xs text-slate-500">{helperText}</p>
-      </div>
-
-      <div>
-        <label htmlFor="validation_kind" className="mb-2 block text-sm font-medium text-slate-700">
+        <label htmlFor="validation_kind" className={fieldLabelClass(validationKindIsMissing)}>
           Metodo validacion
+          <RequiredMark />
         </label>
         <select
           id="validation_kind"
@@ -585,19 +862,86 @@ export function RecordAccessForm({
             setWarnings([]);
           }}
           onKeyDown={handleBlockedEnter}
-          className="w-full rounded-xl border border-slate-300 px-4 py-3"
+          disabled={!hasSelection}
+          className={fieldClass(validationKindIsMissing)}
         >
           <option value="">Selecciona un metodo</option>
           <option value="MANUAL">Manual</option>
           <option value="QR">QR</option>
           <option value="PIN">PIN</option>
-          <option value="FACIAL">Facial</option>
         </select>
       </div>
 
+      {validationKind === 'MANUAL' ? (
+        <div>
+          <label htmlFor="contingency_mode" className={fieldLabelClass(contingencyModeIsMissing)}>
+            Contingencia por dispositivo
+            <RequiredMark />
+          </label>
+          <select
+            id="contingency_mode"
+            name="contingency_mode"
+            value={contingencyMode}
+            onChange={(event) => {
+              const nextMode = event.target.value as ContingencyMode;
+              setContingencyMode(nextMode);
+              if (nextMode !== 'CONTINGENCIA_SIN_DISPOSITIVO') {
+                setContingencyReason('');
+              }
+              setWarnings([]);
+            }}
+            onKeyDown={handleBlockedEnter}
+            disabled={!hasSelection}
+            className={fieldClass(contingencyModeIsMissing)}
+          >
+            <option value="CONTINGENCIA_SIN_DISPOSITIVO">Dispositivo</option>
+          </select>
+
+          <p className="mt-2 text-xs text-slate-500">
+            Solo se habilita cuando la validacion es manual. Reutiliza la busqueda por curso o por estudiante.
+          </p>
+        </div>
+      ) : (
+        <input type="hidden" name="contingency_mode" value="NORMAL" />
+      )}
+
+      {usingContingency ? (
+        <div>
+          <label htmlFor="contingency_reason" className={fieldLabelClass(contingencyReasonIsMissing)}>
+            Motivo de contingencia
+            <RequiredMark />
+          </label>
+          <select
+            id="contingency_reason"
+            name="contingency_reason"
+            value={contingencyReason}
+            onChange={(event) => {
+              setContingencyReason(event.target.value as ContingencyReason);
+              setWarnings([]);
+            }}
+            onKeyDown={handleBlockedEnter}
+            className={fieldClass(contingencyReasonIsMissing)}
+          >
+            <option value="">Selecciona un motivo</option>
+            {CONTINGENCY_REASON_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+
+          <p className="mt-2 text-xs text-slate-500">
+            Esta seleccion se aplica a todos los estudiantes del registro en curso y deja trazabilidad operativa.
+          </p>
+        </div>
+      ) : (
+        <input type="hidden" name="contingency_reason" value="" />
+      )}
+
       <div>
-        <label htmlFor="result" className="mb-2 block text-sm font-medium text-slate-700">
+        <label htmlFor="result" className={fieldLabelClass(resultIsMissing)}>
           Resultado
+          <RequiredMark />
         </label>
         <select
           id="result"
@@ -608,12 +952,29 @@ export function RecordAccessForm({
             setWarnings([]);
           }}
           onKeyDown={handleBlockedEnter}
-          className="w-full rounded-xl border border-slate-300 px-4 py-3"
+          disabled={!hasSelection}
+          className={fieldClass(resultIsMissing)}
         >
           <option value="">Selecciona un resultado</option>
           <option value="APROBADO">Aprobado</option>
           <option value="RECHAZADO">Rechazado</option>
         </select>
+      </div>
+
+      <div className="md:col-span-2">
+        <label htmlFor="notes" className="mb-2 block text-sm font-medium text-slate-700">
+          Descripcion del evento
+        </label>
+        <textarea
+          id="notes"
+          name="notes"
+          rows={4}
+          value={notes}
+          onChange={(event) => setNotes(event.target.value)}
+          onKeyDown={handleBlockedEnter}
+          placeholder="Ejemplo: retiro anticipado por cita medica, ingreso con justificacion, observaciones relevantes..."
+          className="w-full rounded-xl border border-slate-300 px-4 py-3"
+        />
       </div>
 
       <div
@@ -635,30 +996,26 @@ export function RecordAccessForm({
         </p>
       </div>
 
-      <div className="md:col-span-2">
-        <label htmlFor="notes" className="mb-2 block text-sm font-medium text-slate-700">
-          Descripcion del evento
-        </label>
-        <textarea
-          id="notes"
-          name="notes"
-          rows={4}
-          value={notes}
-          onChange={(event) => setNotes(event.target.value)}
-          onKeyDown={handleBlockedEnter}
-          placeholder="Ejemplo: retiro anticipado por cita medica, ingreso con justificacion, observaciones relevantes..."
-          className="w-full rounded-xl border border-slate-300 px-4 py-3"
-        />
+      <div className="md:col-span-2 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3">
+        <p className="text-sm font-semibold text-sky-950">Politica aplicada</p>
+        <p className="mt-1 text-sm text-sky-900">
+          Ingreso:{' '}
+          {accessPolicy.entry_requires_authenticator
+            ? accessPolicy.entry_authenticator_is_exclusive
+              ? 'QR/PIN obligatorio y excluyente'
+              : 'QR/PIN recomendado, manual permitido'
+            : 'manual permitido'}.
+          {' '}Salida:{' '}
+          {accessPolicy.exit_requires_authenticator
+            ? accessPolicy.exit_authenticator_is_exclusive
+              ? 'QR/PIN obligatorio y excluyente'
+              : 'QR/PIN requerido con excepcion documentada'
+            : 'manual permitido'}.
+        </p>
       </div>
 
       <div className="md:col-span-2">
-        <button
-          type="submit"
-          disabled={!hasStudents}
-          className="rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-        >
-          Registrar evento
-        </button>
+        <SubmitButton disabled={!hasStudents || !requiredFieldsAreComplete} />
       </div>
     </form>
   );
