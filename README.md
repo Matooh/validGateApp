@@ -33,6 +33,7 @@ Demostrar una solucion funcional para:
 - roles base del MVP:
   - PORTERIA
   - APODERADO
+  - ESTUDIANTE
 
 ### 2. Dashboard
 - saludo y resumen del usuario autenticado
@@ -51,16 +52,17 @@ Demostrar una solucion funcional para:
 
 ### 4. Porteria
 - registro manual de eventos
+- registro automático de eventos (por QR)
 - tipos de evento:
   - INGRESO
   - SALIDA
-- tipo de salida inteligente:
-  - no aplica para ingresos
-  - obligatorio en salidas
+- tipo de salida auto-atendida:
+  - validaciones obligatorias en salidas
 - campos de validacion:
   - metodo de validacion
   - resultado
   - descripcion del evento
+  - si es que aplica, contingencia
 - eventos recientes con trazabilidad operativa
 
 ### 5. Busqueda de estudiantes en porteria
