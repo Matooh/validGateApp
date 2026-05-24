@@ -5,6 +5,8 @@ import { redirect } from 'next/navigation';
 
 import { createClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/auth';
+import { normalizeChileMobilePhone } from '@/lib/chile/phone';
+import { normalizeRut } from '@/lib/chile/rut';
 
 export async function linkStudentByCodeAction(formData: FormData) {
   const code = String(formData.get('code') ?? '').trim().toUpperCase();
@@ -65,11 +67,23 @@ export async function unlinkStudentAction(formData: FormData) {
 export async function updateStudentAction(formData: FormData) {
   const id = Number(formData.get('student_id'));
   const canLeaveAlone = formData.get('can_leave_alone') === 'on';
+  const rutValue = String(formData.get('rut') ?? '').trim();
+  const phoneValue = String(formData.get('phone') ?? '').trim();
+  const rut = rutValue ? normalizeRut(rutValue) : null;
+  const phone = phoneValue ? normalizeChileMobilePhone(phoneValue) : null;
+
+  if (rutValue && !rut) {
+    redirect(`/students/${id}?message=El+RUT+ingresado+no+es+valido`);
+  }
+
+  if (phoneValue && !phone) {
+    redirect(`/students/${id}?message=El+telefono+debe+usar+formato+%2B56979999999`);
+  }
 
   const supabase = await createClient();
   const { error } = await supabase
     .from('students')
-    .update({ can_leave_alone: canLeaveAlone })
+    .update({ can_leave_alone: canLeaveAlone, rut, phone })
     .eq('id', id);
 
   if (error) {

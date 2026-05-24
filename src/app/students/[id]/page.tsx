@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 
 import { updateAttendanceStatusAction, updateStudentAction } from '@/app/actions/students';
 import { AppNav } from '@/components/app-nav';
+import { PendingSubmitButton } from '@/components/pending-submit-button';
 import { requireUser } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 
@@ -40,7 +41,7 @@ export default async function StudentDetailPage({
 
   let studentQuery = supabase
     .from('students')
-    .select('id, first_name, last_name, can_leave_alone, is_in_institution, link_code, course_id')
+    .select('id, first_name, last_name, rut, phone, can_leave_alone, is_in_institution, link_code, course_id')
     .eq('id', studentId);
 
   if (!isStaff) {
@@ -116,13 +117,24 @@ export default async function StudentDetailPage({
             <form action={updateStudentAction} className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-xl font-semibold text-slate-900">Configuracion del estudiante</h2>
               <input type="hidden" name="student_id" value={student.id} />
+              <div>
+                <label htmlFor="rut" className="mb-2 block text-sm font-medium text-slate-700">RUT estudiante</label>
+                <input id="rut" name="rut" defaultValue={student.rut ?? ''} placeholder="12345678-5" className="w-full rounded-xl border border-slate-300 px-4 py-3" />
+              </div>
+              <div>
+                <label htmlFor="phone" className="mb-2 block text-sm font-medium text-slate-700">Telefono estudiante</label>
+                <input id="phone" name="phone" defaultValue={student.phone ?? ''} placeholder="+56979999999" className="w-full rounded-xl border border-slate-300 px-4 py-3" />
+              </div>
               <label className="flex items-center gap-3 rounded-2xl border border-slate-200 p-4 text-slate-700">
                 <input name="can_leave_alone" type="checkbox" defaultChecked={student.can_leave_alone} className="h-4 w-4" />
                 Permitir salida por voluntad del estudiante
               </label>
-              <button type="submit" className="rounded-xl bg-sky-700 px-4 py-3 font-semibold text-white hover:bg-sky-800">
+              <PendingSubmitButton
+                pendingLabel="Guardando..."
+                className="rounded-xl bg-sky-700 px-4 py-3 font-semibold text-white hover:bg-sky-800 disabled:cursor-not-allowed disabled:bg-sky-300"
+              >
                 Guardar configuracion
-              </button>
+              </PendingSubmitButton>
             </form>
 
             <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -182,9 +194,12 @@ export default async function StudentDetailPage({
                           <option value="TARDANZA">TARDANZA</option>
                           <option value="SALIDA">SALIDA</option>
                         </select>
-                        <button type="submit" className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                        <PendingSubmitButton
+                          pendingLabel="Actualizando..."
+                          className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                        >
                           Actualizar
-                        </button>
+                        </PendingSubmitButton>
                       </form>
                     ) : null}
                   </article>

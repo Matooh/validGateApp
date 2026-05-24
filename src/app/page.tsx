@@ -1,62 +1,56 @@
 import { redirect } from 'next/navigation';
 
+import { FeedbackToast } from '@/components/feedback-toast';
 import { LoginForm } from '@/components/login-form';
 import { createClient } from '@/lib/supabase/server';
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ message?: string }>;
+  searchParams: Promise<{ message?: string; toast?: string }>;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (user) {
-    redirect('/dashboard');
-  }
-
   const params = await searchParams;
+  const message = params.message ?? null;
+  const toastCode = params.toast ?? null;
+
+  const toastMessage =
+    toastCode === 'LOGOUT_SUCCESS'
+      ? 'Sesion cerrada correctamente.'
+      : message;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-10">
-      <header className="mb-10 flex items-center justify-between gap-4 rounded-3xl border border-slate-200 bg-white/90 px-6 py-5 shadow-sm">
-        <p className="text-2xl font-bold text-slate-900">ValidGateApp</p>
-        <div className="flex items-center gap-3 text-sm text-slate-500">
-          <span className="rounded-full border border-slate-200 px-3 py-1">Perfil</span>
-          <span className="rounded-full border border-slate-200 px-3 py-1">Config</span>
-        </div>
-      </header>
+    <main className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
+      <FeedbackToast
+        message={toastMessage}
+        tone={toastCode === 'LOGOUT_SUCCESS' ? 'success' : 'info'}
+        title="Acceso"
+      />
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 lg:grid lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+        <section className="space-y-6">
+          <div>
+            <p className="text-2xl font-bold text-slate-900 sm:text-3xl">ValidGateApp</p>
+            <p className="mt-2 text-sm text-slate-500 sm:text-base">
+              Control de ingreso y salida estudiantil
+            </p>
+          </div>
 
-      <section className="mx-auto grid w-full max-w-5xl gap-8 md:grid-cols-[1.15fr_0.85fr] md:items-center">
-        <div className="space-y-4">
-          <p className="inline-flex rounded-full bg-sky-100 px-4 py-1 text-sm font-medium text-sky-700">MVP desplegable en Vercel</p>
-          <h1 className="text-4xl font-bold tracking-tight text-slate-900">Controla ingreso, salida y trazabilidad de estudiantes desde una sola app.</h1>
-          <p className="text-lg text-slate-600">
-            Este MVP está pensado para tu tesis: login, registro, vínculo de estudiante, visualización de horario,
-            asistencia por bloque y registro de eventos de acceso.
+          <div className="space-y-4">
+            <span className="inline-flex rounded-full bg-sky-100 px-4 py-1 text-sm font-medium text-sky-700">
+              MVP desplegable en Vercel
+            </span>
+          </div>
+        </section>
+
+        <section className="w-full">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+            <LoginForm />
+          </div>
+
+          <p className="mt-6 text-center text-sm text-slate-500">
+            Version 1.0.0 · Fecha de lanzamiento base 2024-06-01
           </p>
-          <ul className="space-y-2 text-slate-600">
-            <li>• Login simple con remember me</li>
-            <li>• Vinculación por código</li>
-            <li>• Estado actual en institución</li>
-            <li>• School timetable con colores</li>
-            <li>• Registro de ingreso y salida</li>
-          </ul>
-        </div>
-
-        <div>
-          {params.message ? (
-            <p className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{params.message}</p>
-          ) : null}
-          <LoginForm />
-        </div>
-      </section>
-
-      <footer className="mt-auto pt-10 text-center text-sm text-slate-500">
-        Version 1.0.0 · Fecha de lanzamiento base 2024-06-01
-      </footer>
+        </section>
+      </div>
     </main>
   );
 }
