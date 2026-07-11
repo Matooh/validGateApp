@@ -14,7 +14,6 @@ type AppChromeProps = {
   displayName: string;
   roleLabel: string;
   navItems: NavItem[];
-  footerItems: NavItem[];
 };
 
 function Icon({ name }: { name: NavItem['icon'] | 'logout' | 'profile' | 'close' }) {
@@ -95,7 +94,6 @@ export function AppChrome({
   displayName,
   roleLabel,
   navItems,
-  footerItems,
 }: AppChromeProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -107,14 +105,14 @@ export function AppChrome({
         <div className="mx-auto grid h-16 max-w-6xl grid-cols-[48px_minmax(0,1fr)] items-center gap-3 px-4 sm:px-6">
           <div
             className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-slate-900 hover:bg-slate-100"
-            title="Menu de navegacion"
+            title="Menú de navegación"
           >
             <Hamburger
               toggled={isMenuOpen}
               toggle={setIsMenuOpen}
               size={24}
               rounded
-              label="Abrir menu de navegacion"
+              label="Abrir menú de navegación"
             />
           </div>
 
@@ -137,13 +135,13 @@ export function AppChrome({
             type="button"
             className="absolute inset-0 h-full w-full bg-slate-950/45"
             onClick={closeMenu}
-            aria-label="Cerrar menu de navegacion"
+            aria-label="Cerrar menú de navegación"
           />
 
           <aside
             id="app-side-menu"
             className="absolute left-0 top-0 z-10 flex h-full w-[min(20rem,82vw)] flex-col border-r border-slate-700 bg-slate-950 text-white shadow-2xl"
-            aria-label="Menu lateral"
+            aria-label="Menú lateral"
             onClick={closeMenu}
           >
             <div className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
@@ -161,13 +159,13 @@ export function AppChrome({
                 type="button"
                 onClick={closeMenu}
                 className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg text-white hover:bg-white/10"
-                aria-label="Cerrar menu"
+                aria-label="Cerrar menú"
               >
                 <Icon name="close" />
               </button>
             </div>
 
-            <nav className="flex-1 space-y-1 p-3" aria-label="Opciones de navegacion">
+            <nav className="flex-1 space-y-1 p-3" aria-label="Opciones de navegación">
               {navItems.map((item) => (
                 <Link
                   key={item.href}
@@ -195,25 +193,6 @@ export function AppChrome({
           </aside>
         </div>
       ) : null}
-
-      <footer className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur">
-        <nav
-          className="mx-auto flex h-16 max-w-6xl items-center gap-2 px-4 sm:px-6"
-          aria-label="Accesos rapidos inferiores"
-        >
-          {footerItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="inline-flex h-12 min-w-12 items-center justify-center rounded-lg px-3 text-slate-900 hover:bg-slate-100"
-              aria-label={item.label}
-              title={item.label}
-            >
-              <Icon name={item.icon} />
-            </Link>
-          ))}
-        </nav>
-      </footer>
     </>
   );
 }

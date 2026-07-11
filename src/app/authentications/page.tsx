@@ -105,15 +105,15 @@ export default async function AuthenticationsPage() {
             Autenticaciones ValidGate
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-300 sm:text-base">
-            Metodos disponibles para validar ingreso, salida y retiro de estudiantes.
+            Métodos disponibles para validar ingreso, salida y retiro de estudiantes.
           </p>
         </div>
 
         <section className="grid gap-4 md:grid-cols-3">
           <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-slate-900">QR dinamico</p>
+            <p className="text-sm font-semibold text-slate-900">QR dinámico</p>
             <p className="mt-2 text-sm text-slate-500">
-              Credencial temporal para presentar en porteria.
+              Credencial temporal para presentar en portería.
             </p>
             <span className="mt-4 inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
               Preparado
@@ -123,7 +123,7 @@ export default async function AuthenticationsPage() {
           <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-sm font-semibold text-slate-900">PIN temporal</p>
             <p className="mt-2 text-sm text-slate-500">
-              Metodo de contingencia con vencimiento y limite de intentos.
+              Método de contingencia con vencimiento y límite de intentos.
             </p>
             <span className="mt-4 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
               Siguiente fase
@@ -133,7 +133,7 @@ export default async function AuthenticationsPage() {
           <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-sm font-semibold text-slate-900">MFA</p>
             <p className="mt-2 text-sm text-slate-500">
-              Segundo factor para perfiles sensibles como administracion y porteria.
+              Segundo factor para perfiles sensibles como administración y portería.
             </p>
             <span className="mt-4 inline-flex rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-700">
               Supabase Auth
@@ -145,8 +145,8 @@ export default async function AuthenticationsPage() {
           <div>
             <h2 className="text-xl font-semibold text-slate-900">Credenciales QR</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Los codigos mostrados son opacos y se renovaran cuando se implemente el ciclo
-              completo de expiracion y uso unico.
+              Los códigos mostrados son opacos y se renovarán cuando se implemente el ciclo
+              completo de expiración y uso único.
             </p>
           </div>
 
@@ -161,7 +161,7 @@ export default async function AuthenticationsPage() {
                       <AuthenticationQrCard
                         key={student.id}
                         title={`${student.first_name} ${student.last_name}`}
-                        subtitle={student.is_in_institution ? 'Dentro de la institucion' : 'Fuera de la institucion'}
+                        subtitle={student.is_in_institution ? 'Dentro de la institución' : 'Fuera de la institución'}
                         studentId={student.id}
                         initialCredentialId={activeQr?.id}
                         initialExpiresAt={activeQr?.expires_at}
@@ -191,9 +191,9 @@ export default async function AuthenticationsPage() {
                   subtitle={
                     currentStudent
                       ? currentStudent.isInInstitution
-                        ? 'Dentro de la institucion'
-                        : 'Fuera de la institucion'
-                      : 'QR personal para validacion en porteria'
+                        ? 'Dentro de la institución'
+                        : 'Fuera de la institución'
+                      : 'QR personal para validación en portería'
                   }
                   studentId={currentStudent?.studentId}
                   initialCredentialId={activeQr?.id}

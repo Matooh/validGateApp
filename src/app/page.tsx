@@ -15,7 +15,7 @@ export default async function LoginPage({
 
   const toastMessage =
     toastCode === 'LOGOUT_SUCCESS'
-      ? 'Sesion cerrada correctamente.'
+      ? 'Sesión cerrada correctamente.'
       : message;
 
   return (

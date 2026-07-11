@@ -5,3 +5,6 @@ node_modules
 .vercel
 *.log
 tsconfig.tsbuildinfo
+
+docs/validgate-context
+docs/validgate_sistema_actual.md

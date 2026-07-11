@@ -8,6 +8,7 @@ import {
 } from '@/app/actions/authorization-requests';
 import { unlinkStudentAction } from '@/app/actions/students';
 import { AppNav } from '@/components/app-nav';
+import { DashboardAutoRefresh } from '@/components/dashboard-auto-refresh';
 import { FeedbackToast } from '@/components/feedback-toast';
 import { PendingSubmitButton } from '@/components/pending-submit-button';
 import { RecentEventCard } from '@/components/recent-event-card';
@@ -40,25 +41,25 @@ function getDashboardCopy(role?: string | null, firstName?: string | null, email
 
   if (role === 'ADMIN') {
     return {
-      eyebrow: 'Administracion',
+      eyebrow: 'Administración',
       title: `Hola, ${name}.`,
       description:
-        'Administra la configuracion institucional, revisa la trazabilidad operacional y supervisa los metodos de validacion disponibles.',
-      primaryTitle: 'Gestion institucional',
-      primaryDescription: 'Accesos rapidos para configuracion, porteria y seguridad.',
-      recentDescription: 'Ultimos eventos registrados en la institucion.',
+        'Administra la configuración institucional, revisa la trazabilidad operacional y supervisa los métodos de validación disponibles.',
+      primaryTitle: 'Gestión institucional',
+      primaryDescription: 'Accesos rápidos para configuración, portería y seguridad.',
+      recentDescription: 'Últimos eventos registrados en la institución.',
     };
   }
 
   if (role === 'PORTERIA') {
     return {
-      eyebrow: 'Porteria',
+      eyebrow: 'Portería',
       title: `Hola, ${name}.`,
       description:
         'Valida credenciales, registra ingresos y salidas, y revisa eventos recientes del establecimiento.',
-      primaryTitle: 'Operacion de porteria',
+      primaryTitle: 'Operación de portería',
       primaryDescription: 'Herramientas para control de ingreso, salida y retiro.',
-      recentDescription: 'Ultimos eventos registrados por porteria.',
+      recentDescription: 'Últimos eventos registrados por portería.',
     };
   }
 
@@ -69,8 +70,8 @@ function getDashboardCopy(role?: string | null, firstName?: string | null, email
       description:
         'Consulta estudiantes vinculados, revisa su trazabilidad y gestiona credenciales o autorizaciones cuando corresponda.',
       primaryTitle: 'Estudiantes vinculados',
-      primaryDescription: 'Informacion de estudiantes asociados a tu cuenta.',
-      recentDescription: 'Eventos mas recientes de tus estudiantes vinculados.',
+      primaryDescription: 'Información de estudiantes asociados a tu cuenta.',
+      recentDescription: 'Eventos más recientes de tus estudiantes vinculados.',
     };
   }
 
@@ -78,19 +79,19 @@ function getDashboardCopy(role?: string | null, firstName?: string | null, email
     eyebrow: 'Estudiante',
     title: `Hola, ${name}.`,
     description:
-      'Consulta tus metodos de autenticacion, revisa tus responsables vinculados y presenta credenciales para porteria.',
+      'Consulta tus métodos de autenticación, revisa tus responsables vinculados y presenta credenciales para portería.',
     primaryTitle: 'Apoderados',
-    primaryDescription: 'Informacion sobre apoderados y personas responsables.',
-    recentDescription: 'Ultimos eventos registrados para tu perfil.',
+    primaryDescription: 'Información sobre apoderados y personas responsables.',
+    recentDescription: 'Últimos eventos registrados para tu perfil.',
   };
 }
 
 function getRoleActionItems(role?: string | null) {
   if (role === 'ADMIN') {
     return [
-      { href: '/guard', label: 'Modulo porteria', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
-      { href: '/settings', label: 'Politicas de acceso', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
-      { href: '/authentications', label: 'QR dinamico OK', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
+      { href: '/guard', label: 'Módulo portería', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
+      { href: '/settings', label: 'Políticas de acceso', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
+      { href: '/authentications', label: 'QR dinámico OK', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
       { href: '/settings', label: 'MFA pendiente', className: 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100' },
     ];
   }
@@ -99,16 +100,16 @@ function getRoleActionItems(role?: string | null) {
     return [
       { href: '/guard', label: 'Registrar evento', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
       { href: '/guard', label: 'Validar QR', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
-      { href: '/authentications', label: 'QR dinamico OK', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
+      { href: '/authentications', label: 'QR dinámico OK', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
       { href: '/settings', label: 'MFA pendiente', className: 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100' },
     ];
   }
 
   return [
-    { href: '/authentications', label: 'QR dinamico OK', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
+    { href: '/authentications', label: 'QR dinámico OK', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
     { href: '/authentications', label: 'PIN temporal pendiente', className: 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100' },
     { href: '/authentications', label: 'MFA pendiente', className: 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100' },
-    { href: '/authentications', label: 'Biometria NOK', className: 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100' },
+    { href: '/authentications', label: 'Biometría NOK', className: 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100' },
   ];
 }
 
@@ -235,9 +236,24 @@ export default async function DashboardPage({
           .maybeSingle()
       : { data: null };
 
+  const { data: pendingStudentAuthorizationRequest } =
+    currentStudent
+      ? await supabase
+          .from('authorization_requests')
+          .select('id, requested_at, expires_at, reason')
+          .eq('student_id', currentStudent.studentId)
+          .eq('requested_by_profile_id', user.id)
+          .eq('status', 'PENDING')
+          .gt('expires_at', new Date().toISOString())
+          .order('requested_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : { data: null };
+
   const guardianLinks = (studentGuardianLinks ?? []) as StudentGuardianLink[];
   const studentActiveQrCredential = activeQrCredential as ActiveQrCredential;
   const studentHasActiveQr = Boolean(studentActiveQrCredential);
+  const studentHasPendingAuthorizationRequest = Boolean(pendingStudentAuthorizationRequest);
   const pendingAuthorizationRequests =
     profile?.role === 'APODERADO'
       ? await listGuardianPendingAuthorizationRequests()
@@ -272,22 +288,38 @@ export default async function DashboardPage({
   ) {
     const { data: authData } = await supabase
       .from('authorization_requests')
-      .select('id, status, request_type, requested_at, responded_at, reason, guardian_profile_id, students(id, first_name, last_name)')
+      .select('id, status, request_type, requested_at, responded_at, expires_at, reason, guardian_profile_id, students(id, first_name, last_name)')
       .or('status.eq.PENDING,status.eq.APPROVED,status.eq.REJECTED')
       .order('requested_at', { ascending: false })
       .limit(8);
 
-    recentAuthRequests = (authData ?? []).map((ar: any) => ({
-      id: ar.id,
-      event_type: 'SALIDA',
-      exit_kind: ar.request_type === 'EXIT_ALONE' ? 'SOLO' : 'RETIRO_AUTORIZADO',
-      validation_kind: 'MANUAL',
-      result: ar.status === 'PENDING' ? 'RECHAZADO' : ar.status,
-      occurred_at: ar.responded_at ?? ar.requested_at,
-      notes: ar.reason ?? (ar.status === 'APPROVED' ? 'Solicitud aprobada' : 'Solicitud registrada'),
-      students: ar.students,
-      isAuthRequest: true,
-    }));
+    recentAuthRequests = (authData ?? []).map((ar: any) => {
+      const isPending =
+        ar.status === 'PENDING' &&
+        new Date(ar.expires_at ?? ar.requested_at).getTime() > Date.now();
+      const requestLabel =
+        isPending
+          ? 'Solicitud de retiro en curso'
+          : ar.status === 'APPROVED'
+            ? 'Solicitud de retiro aprobada'
+            : ar.status === 'REJECTED'
+              ? 'Solicitud de retiro rechazada'
+              : 'Solicitud de retiro expirada';
+
+      return {
+        id: ar.id,
+        event_type: requestLabel,
+        exit_kind: ar.request_type === 'EXIT_ALONE' ? 'SOLO' : 'RETIRO_AUTORIZADO',
+        validation_kind: 'SOLICITUD',
+        result: ar.status,
+        occurred_at: ar.responded_at ?? ar.requested_at,
+        notes: ar.reason ?? (isPending ? 'Esperando respuesta del apoderado.' : requestLabel),
+        students: ar.students,
+        isAuthRequest: true,
+        isPendingAuthorizationRequest: isPending,
+        requestLabel,
+      };
+    });
   }
 
   const combinedEvents = [
@@ -299,13 +331,18 @@ export default async function DashboardPage({
 
   const displayName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || profile?.email || null;
   const recentEventStorageScope = `dashboard:${profile?.role ?? 'SIN_ROL'}:${user.id}`;
-  const institutionLabel = institutionNames.length > 1 ? 'Instituciones' : 'Institucion';
+  const institutionLabel = institutionNames.length > 1 ? 'Instituciones' : 'Institución';
   const institutionEmptyText = profile?.role === 'APODERADO' ? 'Sin instituciones vinculadas' : 'No asignada';
   const dashboardCopy = getDashboardCopy(profile?.role, profile?.first_name, profile?.email);
   const roleActionItems = getRoleActionItems(profile?.role);
+  const autoRefreshExpiresAt = [
+    pendingStudentAuthorizationRequest?.expires_at,
+    ...pendingAuthorizationRequests.map((request) => request.expiresAt),
+  ];
 
   return (
     <main className="min-h-screen bg-slate-50">
+      <DashboardAutoRefresh expiresAt={autoRefreshExpiresAt} />
       <FeedbackToast message={toastMessage} tone={toastTone} title="Dashboard" />
       <AppNav role={profile?.role} displayName={displayName} />
 
@@ -337,7 +374,7 @@ export default async function DashboardPage({
                 </div>
               )}
               {profile?.role === 'APODERADO' && institutionNames.length > 1 ? (
-                <p className="mt-2 text-xs text-slate-300">Tienes estudiantes vinculados en multiples instituciones.</p>
+                <p className="mt-2 text-xs text-slate-300">Tienes estudiantes vinculados en múltiples instituciones.</p>
               ) : null}
             </div>
           </div>
@@ -348,17 +385,17 @@ export default async function DashboardPage({
             <div className="min-w-0">
               <h2 className="text-xl font-semibold text-slate-900">
                 {profile?.role === 'ADMIN'
-                  ? 'Administracion y seguridad'
+                  ? 'Administración y seguridad'
                   : profile?.role === 'PORTERIA'
-                    ? 'Acciones de porteria'
-                    : 'Metodos de autenticacion'}
+                    ? 'Acciones de portería'
+                    : 'Métodos de autenticación'}
               </h2>
               <p className="mt-1 text-sm text-slate-500">
                 {profile?.role === 'ADMIN'
-                  ? 'Gestiona configuracion, seguridad y control operacional.'
+                  ? 'Gestiona configuración, seguridad y control operacional.'
                   : profile?.role === 'PORTERIA'
                     ? 'Accesos directos para validar y registrar eventos.'
-                    : 'Estado operativo de los mecanismos disponibles para validar eventos en porteria.'}
+                    : 'Estado operativo de los mecanismos disponibles para validar eventos en portería.'}
               </p>
             </div>
 
@@ -389,16 +426,16 @@ export default async function DashboardPage({
               {profile?.role === 'ADMIN' || profile?.role === 'PORTERIA' ? (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Link href="/guard" className="rounded-2xl border border-slate-200 p-4 hover:bg-slate-50">
-                    <p className="font-semibold text-slate-900">Porteria</p>
+                    <p className="font-semibold text-slate-900">Portería</p>
                     <p className="mt-1 text-sm text-slate-500">Validar QR y registrar ingresos, salidas o retiros.</p>
                   </Link>
                   <Link href="/settings" className="rounded-2xl border border-slate-200 p-4 hover:bg-slate-50">
                     <p className="font-semibold text-slate-900">
-                      {profile?.role === 'ADMIN' ? 'Configuracion' : 'Perfil'}
+                      {profile?.role === 'ADMIN' ? 'Configuración' : 'Perfil'}
                     </p>
                     <p className="mt-1 text-sm text-slate-500">
                       {profile?.role === 'ADMIN'
-                        ? 'Actualizar politicas institucionales y datos de seguridad.'
+                        ? 'Actualizar políticas institucionales y datos de seguridad.'
                         : 'Actualizar datos de usuario y seguridad personal.'}
                     </p>
                   </Link>
@@ -421,7 +458,7 @@ export default async function DashboardPage({
                           <p className="mt-2 text-sm text-slate-500">
                             Estado actual:{' '}
                             <span className="font-medium text-slate-800">
-                              {currentStudent.isInInstitution ? 'Dentro de la institucion' : 'Fuera de la institucion'}
+                              {currentStudent.isInInstitution ? 'Dentro de la institución' : 'Fuera de la institución'}
                             </span>
                           </p>
                           <p
@@ -463,26 +500,33 @@ export default async function DashboardPage({
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0 flex-1">
                           <h3 className="text-lg font-semibold text-slate-900">
-                            Solicitud de autorizacion de salida
+                            Solicitud de autorización de salida
                           </h3>
                           <p className="mt-1 text-sm text-slate-500">
-                            Pide aprobacion a tu apoderado. Porteria registrara la salida solo cuando confirmes el evento.
+                            Pide aprobación a tu apoderado. Portería registrará la salida solo cuando confirmes el evento.
                           </p>
                           <p className="mt-2 text-sm text-slate-500">
                             Estado actual:{' '}
                             <span className="font-medium text-slate-800">
-                              {currentStudent.isInInstitution ? 'Dentro de la institucion' : 'Fuera de la institucion'}
+                              {currentStudent.isInInstitution ? 'Dentro de la institución' : 'Fuera de la institución'}
                             </span>
                           </p>
                         </div>
                         <PendingSubmitButton
-                          disabled={!currentStudent.isInInstitution}
+                          disabled={!currentStudent.isInInstitution || studentHasPendingAuthorizationRequest}
                           pendingLabel="Enviando..."
                           className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
                         >
-                          Solicitar autorizacion de salida
+                          {studentHasPendingAuthorizationRequest
+                            ? 'Solicitud en curso'
+                            : 'Solicitar autorización de salida'}
                         </PendingSubmitButton>
                       </div>
+                      {studentHasPendingAuthorizationRequest ? (
+                        <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                          Ya existe una solicitud de retiro vigente. Espera la respuesta de tu apoderado antes de crear una nueva.
+                        </p>
+                      ) : null}
                       <label htmlFor="exit_reason" className="mt-4 block text-sm font-medium text-slate-700">
                         Motivo opcional
                       </label>
@@ -490,7 +534,8 @@ export default async function DashboardPage({
                         id="exit_reason"
                         name="reason"
                         rows={2}
-                        placeholder="Ej: salida por tramite familiar"
+                        disabled={studentHasPendingAuthorizationRequest}
+                        placeholder="Ej: salida por trámite familiar"
                         className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm"
                       />
                     </form>
@@ -512,13 +557,13 @@ export default async function DashboardPage({
                                   {link.guardian_name || 'Responsable sin nombre'}
                                 </h3>
                                 <p className="mt-1 break-words text-sm text-slate-500">
-                                  Relacion: {relation.label}
+                                  Relación: {relation.label}
                                 </p>
                                 <p className="mt-1 break-words text-sm text-slate-500">
                                   Email: {link.guardian_email ?? 'Sin correo registrado'}
                                 </p>
                                 <p className="mt-1 break-words text-sm text-slate-500">
-                                  Institucion: {link.institution_name}
+                                  Institución: {link.institution_name}
                                 </p>
                               </div>
                               <span className={`w-fit max-w-full break-words rounded-full px-3 py-1 text-sm font-medium sm:shrink-0 ${relation.className}`}>
@@ -548,18 +593,18 @@ export default async function DashboardPage({
                           <h3 className="break-words text-lg font-semibold text-slate-900">
                             {student.first_name} {student.last_name}
                           </h3>
-                          <p className="mt-1 break-words text-sm text-slate-500">Relacion: {item.relation_type ?? 'APODERADO'}</p>
+                          <p className="mt-1 break-words text-sm text-slate-500">Relación: {item.relation_type ?? 'APODERADO'}</p>
                           <p className="mt-1 break-words text-sm text-slate-500">
-                            Institucion: {institutionName ?? 'Sin institucion'}
+                            Institución: {institutionName ?? 'Sin institución'}
                           </p>
-                          <p className="mt-1 break-words text-sm text-slate-500">Codigo de vinculacion: {student.link_code}</p>
+                          <p className="mt-1 break-words text-sm text-slate-500">Código de vinculación: {student.link_code}</p>
                         </div>
                         <span
                           className={`w-fit max-w-full break-words rounded-full px-3 py-1 text-sm font-medium sm:shrink-0 ${
                             student.is_in_institution ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
                           }`}
                         >
-                          {student.is_in_institution ? 'En institucion' : 'Fuera de institucion'}
+                          {student.is_in_institution ? 'En institución' : 'Fuera de institución'}
                         </span>
                       </div>
 
@@ -614,7 +659,7 @@ export default async function DashboardPage({
                           Curso: {request.courseName ?? 'Sin curso asignado'}
                         </p>
                         <p className="mt-1 text-sm text-slate-500">
-                          Estado: {request.isInInstitution ? 'Dentro de la institucion' : 'Fuera de la institucion'}
+                          Estado: {request.isInInstitution ? 'Dentro de la institución' : 'Fuera de la institución'}
                         </p>
                         {request.reason ? (
                           <p className="mt-2 rounded-xl bg-white px-3 py-2 text-sm text-slate-700">
@@ -662,7 +707,7 @@ export default async function DashboardPage({
               <h2 className="text-xl font-semibold text-slate-900">Trazabilidad reciente</h2>
               <p className="text-sm text-slate-500">
                 {profile?.role === 'APODERADO'
-                  ? 'Eventos mas recientes de tus estudiantes vinculados.'
+                  ? 'Eventos más recientes de tus estudiantes vinculados.'
                   : dashboardCopy.recentDescription}
               </p>
             </div>
@@ -670,8 +715,8 @@ export default async function DashboardPage({
               {combinedEvents.length > 0 ? (
                 combinedEvents.map((event) => {
                   const student = Array.isArray(event.students) ? event.students[0] : event.students;
-                  // TODO: reemplazar por una condicion real cuando exista un estado
-                  // de evento nuevo/no leido o de visualizacion por usuario.
+                  // TODO: reemplazar por una condición real cuando exista un estado
+                  // de evento nuevo/no leído o de visualización por usuario.
                   const shouldShowNewBadge = true;
 
                   return (
@@ -684,12 +729,15 @@ export default async function DashboardPage({
                       <p className="break-words font-medium text-slate-900">
                         {student ? `${student.first_name} ${student.last_name}` : 'Estudiante'} · {event.event_type}
                       </p>
-                      <p className="mt-1 break-words text-sm text-slate-500">
+                      {event.isAuthRequest ? (
+                        <p className="mt-1 break-words text-sm text-slate-500">{event.requestLabel}</p>
+                      ) : null}
+                      <p className={`mt-1 break-words text-sm text-slate-500 ${event.isAuthRequest ? 'hidden' : ''}`}>
                         {event.validation_kind} · {event.result} · {event.event_type === 'SALIDA' ? event.exit_kind ?? 'Sin clasificar' : 'Ingreso'}
                       </p>
                       {event.notes ? (
                         <div className="mt-3 break-words rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                          <span className="font-medium text-slate-900">Descripcion:</span> {event.notes}
+                          <span className="font-medium text-slate-900">Descripción:</span> {event.notes}
                         </div>
                       ) : null}
                       <p className="mt-2 break-words text-xs text-slate-400">{new Date(event.occurred_at).toLocaleString('es-CL')}</p>
@@ -697,7 +745,7 @@ export default async function DashboardPage({
                   );
                 })
               ) : (
-                <p className="rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">Aun no hay eventos registrados.</p>
+                <p className="rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">Aún no hay eventos registrados.</p>
               )}
             </div>
           </section>

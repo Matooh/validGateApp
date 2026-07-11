@@ -24,10 +24,10 @@ type StudentPolicySnapshot = {
 const CONTINGENCY_REASON_MESSAGES: Record<string, string> = {
   SIN_DISPOSITIVO: 'sin dispositivo propio',
   NO_CELULAR: 'sin celular',
-  SIN_BATERIA: 'celular sin bateria',
+  SIN_BATERIA: 'celular sin batería',
   QR_NO_DISPONIBLE: 'QR no disponible',
-  CAMARA_NO_DISPONIBLE: 'camara no disponible',
-  JARDIN_INFANTIL: 'estudiante de jardin infantil',
+  CAMARA_NO_DISPONIBLE: 'cámara no disponible',
+  JARDIN_INFANTIL: 'estudiante de jardín infantil',
   OTRO: 'otro motivo de contingencia',
 };
 
@@ -103,12 +103,12 @@ function buildContingencyNotes(notes: string, contingencyReason: string) {
 }
 
 const POLICY_FAILURE_MESSAGES: Record<AccessPolicyFailure, string> = {
-  AUTHENTICATOR_REQUIRED: 'La politica exige QR o PIN para este evento',
+  AUTHENTICATOR_REQUIRED: 'La política exige QR o PIN para este evento',
   ENTRY_ALREADY_ACTIVE: 'El estudiante ya registra un ingreso activo',
   EXIT_WITHOUT_ACTIVE_ENTRY: 'El estudiante no tiene un ingreso activo',
-  EXIT_NOT_ALLOWED_ALONE: 'El estudiante no esta autorizado para salir solo',
-  EXIT_OBSERVATION_REQUIRED: 'Debes agregar una observacion si registras salida sin autenticador',
-  VALIDATION_ERROR: 'El evento no cumple las reglas de validacion',
+  EXIT_NOT_ALLOWED_ALONE: 'El estudiante no está autorizado para salir solo',
+  EXIT_OBSERVATION_REQUIRED: 'Debes agregar una observación si registras salida sin autenticador',
+  VALIDATION_ERROR: 'El evento no cumple las reglas de validación',
 };
 
 export async function recordAccessEventAction(formData: FormData) {
@@ -153,12 +153,12 @@ export async function recordAccessEventAction(formData: FormData) {
   }
 
   if (!validationKind) {
-    validationErrors.push('Debes seleccionar un metodo de validacion');
+    validationErrors.push('Debes seleccionar un método de validación');
   }
 
   if (usingContingency) {
     if (validationKind !== 'MANUAL') {
-      validationErrors.push('La contingencia sin dispositivo solo se permite con validacion manual');
+      validationErrors.push('La contingencia sin dispositivo solo se permite con validación manual');
     }
 
     if (!contingencyReason) {
@@ -166,7 +166,7 @@ export async function recordAccessEventAction(formData: FormData) {
     }
 
     if (!notes) {
-      validationErrors.push('Debes registrar una observacion para la contingencia');
+      validationErrors.push('Debes registrar una observación para la contingencia');
     }
   }
 
@@ -188,7 +188,7 @@ export async function recordAccessEventAction(formData: FormData) {
   const institutionId = profile?.institution_id;
 
   if (!institutionId) {
-    redirect('/guard?message=No+hay+institucion+asignada+para+registrar+eventos');
+    redirect('/guard?message=No+hay+institución+asignada+para+registrar+eventos');
   }
 
   const { data: policyData } = await supabase
@@ -216,7 +216,7 @@ export async function recordAccessEventAction(formData: FormData) {
 
   const missingStudentIds = studentIds.filter((studentId) => !studentsById.has(studentId));
   if (missingStudentIds.length > 0) {
-    redirect('/guard?message=Uno+o+mas+estudiantes+no+pertenecen+a+tu+institucion');
+    redirect('/guard?message=Uno+o+más+estudiantes+no+pertenecen+a+tu+institución');
   }
 
   const { requiresAuthenticator } = getPolicyForEvent(policy, eventType);

@@ -23,7 +23,7 @@ export default async function LinkStudentPage({
       <section className="mx-auto max-w-3xl space-y-6 px-6 py-8">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Vincular estudiante a cuenta</h1>
-          <p className="mt-2 text-slate-600">Ingresa el codigo de vinculacion entregado por la institucion educativa.</p>
+          <p className="mt-2 text-slate-600">Ingresa el código de vinculación entregado por la institución educativa.</p>
         </div>
         {params.message ? (
           <p className={`rounded-xl border px-4 py-3 text-sm ${MESSAGE_STYLES[messageKind]}`}>

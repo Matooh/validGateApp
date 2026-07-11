@@ -18,5 +18,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.redirect(`${origin}/?message=No+se+pudo+validar+la+sesion`);
+  return NextResponse.redirect(`${origin}/?message=No+se+pudo+validar+la+sesión`);
 }

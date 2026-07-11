@@ -8,11 +8,11 @@ type ToastTone = 'success' | 'warning' | 'danger' | 'info';
 const TONE_STYLES: Record<ToastTone, { wrapper: string; title: string }> = {
   success: {
     wrapper: 'border-emerald-200 bg-emerald-50 text-emerald-900 shadow-emerald-100',
-    title: 'Exito',
+    title: 'Éxito',
   },
   warning: {
     wrapper: 'border-amber-200 bg-amber-50 text-amber-900 shadow-amber-100',
-    title: 'Atencion',
+    title: 'Atención',
   },
   danger: {
     wrapper: 'border-rose-200 bg-rose-50 text-rose-900 shadow-rose-100',
@@ -61,7 +61,11 @@ export function FeedbackToast({
   return createPortal(
     <div
       className={`${placementClassName} rounded-2xl border px-4 py-3 shadow-lg ${theme.wrapper}`}
-      style={{ left: '50%', top: '72vh', transform: 'translate(-50%, -50%)' }}
+      style={{
+        left: '50%',
+        bottom: 'calc(2rem + env(safe-area-inset-bottom))',
+        transform: 'translateX(-50%)',
+      }}
       role="status"
       aria-live="polite"
     >
@@ -76,7 +80,7 @@ export function FeedbackToast({
           type="button"
           onClick={() => setOpen(false)}
           className="rounded-full px-2 py-1 text-xs font-semibold opacity-70 transition hover:opacity-100"
-          aria-label="Cerrar notificacion"
+          aria-label="Cerrar notificación"
         >
           Cerrar
         </button>
