@@ -42,8 +42,8 @@ export default async function SettingsPage({
       <AppNav role={profile?.role} displayName={[profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || profile?.email} />
       <section className="mx-auto max-w-5xl space-y-6 px-6 py-8">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Configuracion de perfil</h1>
-          <p className="mt-2 text-slate-600">Actualiza tu informacion personal y cambia tu password.</p>
+          <h1 className="text-3xl font-bold text-slate-900">Configuración de perfil</h1>
+          <p className="mt-2 text-slate-600">Actualiza tu información personal y cambia tu password.</p>
         </div>
 
         {params.message ? (
@@ -66,7 +66,7 @@ export default async function SettingsPage({
               <input id="rut" name="rut" defaultValue={fullProfile?.rut ?? ''} placeholder="12345678-5" className="w-full rounded-xl border border-slate-300 px-4 py-3" />
             </div>
             <div>
-              <label htmlFor="phone" className="mb-2 block text-sm font-medium text-slate-700">Telefono</label>
+              <label htmlFor="phone" className="mb-2 block text-sm font-medium text-slate-700">Teléfono</label>
               <input id="phone" name="phone" defaultValue={fullProfile?.phone ?? ''} placeholder="+56979999999" className="w-full rounded-xl border border-slate-300 px-4 py-3" />
             </div>
             <PendingSubmitButton
@@ -99,10 +99,10 @@ export default async function SettingsPage({
           >
             <div>
               <h2 className="text-xl font-semibold text-slate-900">
-                Politica de ingreso y salida
+                Política de ingreso y salida
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Define si porteria puede registrar eventos manuales o si debe exigir QR/PIN.
+                Define si portería puede registrar eventos manuales o si debe exigir QR/PIN.
               </p>
             </div>
 
@@ -156,7 +156,7 @@ export default async function SettingsPage({
                     defaultChecked={policy.exit_requires_observation_without_authenticator}
                     className="mt-1 h-4 w-4"
                   />
-                  Solicitar observacion cuando la salida se registre sin QR/PIN.
+                  Solicitar observación cuando la salida se registre sin QR/PIN.
                 </label>
               </fieldset>
             </div>
@@ -165,7 +165,7 @@ export default async function SettingsPage({
               pendingLabel="Guardando..."
               className="rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-slate-700"
             >
-              Guardar politica de acceso
+              Guardar política de acceso
             </PendingSubmitButton>
           </form>
         ) : null}

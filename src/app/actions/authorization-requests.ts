@@ -366,7 +366,7 @@ export async function respondToAuthorizationRequest(
   }
 
   if (decision === 'APPROVED') {
-    // TODO: mover aprobacion + creacion de autorizacion a una RPC transaccional.
+    // TODO: mover aprobación + creacion de autorización a una RPC transaccional.
     const { error: authorizationError } = await supabase
       .from('student_exit_authorizations')
       .insert({

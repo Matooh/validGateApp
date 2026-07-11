@@ -71,11 +71,11 @@ export async function updateProfileAction(formData: FormData) {
   const phone = phoneValue ? normalizeChileMobilePhone(phoneValue) : null;
 
   if (rutValue && !rut) {
-    redirect('/settings?message=El+RUT+ingresado+no+es+valido');
+    redirect('/settings?message=El+RUT+ingresado+no+es+válido');
   }
 
   if (phoneValue && !phone) {
-    redirect('/settings?message=El+telefono+debe+usar+formato+%2B56979999999');
+    redirect('/settings?message=El+teléfono+debe+usar+formato+%2B56979999999');
   }
 
   const supabase = await createClient();
@@ -98,7 +98,7 @@ export async function updateProfileAction(formData: FormData) {
 
   revalidatePath('/dashboard');
   revalidatePath('/settings');
-  redirect('/settings?message=Actualizacion+exitosa');
+  redirect('/settings?message=Actualizacion+éxitosa');
 }
 
 export async function updatePasswordAction(formData: FormData) {
@@ -135,7 +135,7 @@ export async function updateAccessPolicyAction(formData: FormData) {
     .single();
 
   if (profile?.role !== 'ADMIN' || !profile.institution_id) {
-    redirect('/settings?message=No+tienes+permisos+para+modificar+esta+configuracion');
+    redirect('/settings?message=No+tienes+permisos+para+modificar+está+configuración');
   }
 
   const entryRequiresAuthenticator = formData.get('entry_requires_authenticator') === 'on';
@@ -158,10 +158,10 @@ export async function updateAccessPolicyAction(formData: FormData) {
     .upsert(payload, { onConflict: 'institution_id' });
 
   if (error) {
-    redirect('/settings?message=No+se+pudo+actualizar+la+politica+de+acceso');
+    redirect('/settings?message=No+se+pudo+actualizar+la+política+de+acceso');
   }
 
   revalidatePath('/guard');
   revalidatePath('/settings');
-  redirect('/settings?message=Politica+de+acceso+actualizada');
+  redirect('/settings?message=Política+de+acceso+actualizada');
 }

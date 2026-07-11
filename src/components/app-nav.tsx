@@ -16,7 +16,7 @@ export function AppNav({ role, displayName }: AppNavProps) {
       ? [{ href: '/students/link', label: 'Vincular estudiante', icon: 'student' as const }]
       : []),
     ...(hasPermission(role ?? null, 'view_guard_module')
-      ? [{ href: '/guard', label: 'Porteria', icon: 'guard' as const }]
+      ? [{ href: '/guard', label: 'Portería', icon: 'guard' as const }]
       : []),
     ...(hasPermission(role ?? null, 'view_authentications')
       ? [{ href: '/authentications', label: 'Autenticaciones', icon: 'auth' as const }]
@@ -24,19 +24,11 @@ export function AppNav({ role, displayName }: AppNavProps) {
     { href: '/settings', label: 'Config', icon: 'settings' as const },
   ];
 
-  const footerItems = [
-    { href: '/dashboard', label: 'Home', icon: 'home' as const },
-    ...(hasPermission(role ?? null, 'view_authentications')
-      ? [{ href: '/authentications', label: 'Autenticaciones', icon: 'auth' as const }]
-      : []),
-  ];
-
   return (
     <AppChrome
       displayName={profileLabel}
       roleLabel={roleLabel}
       navItems={navItems}
-      footerItems={footerItems}
     />
   );
 }

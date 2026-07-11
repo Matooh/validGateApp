@@ -34,10 +34,10 @@ type ContingencyReason =
 const CONTINGENCY_REASON_OPTIONS: Array<{ value: ContingencyReason; label: string }> = [
   { value: 'SIN_DISPOSITIVO', label: 'Sin dispositivo propio' },
   { value: 'NO_CELULAR', label: 'Sin celular' },
-  { value: 'SIN_BATERIA', label: 'Celular sin bateria' },
+  { value: 'SIN_BATERIA', label: 'Celular sin batería' },
   { value: 'QR_NO_DISPONIBLE', label: 'QR no disponible' },
-  { value: 'CAMARA_NO_DISPONIBLE', label: 'Camara no disponible' },
-  { value: 'JARDIN_INFANTIL', label: 'Estudiante de jardin infantil' },
+  { value: 'CAMARA_NO_DISPONIBLE', label: 'Cámara no disponible' },
+  { value: 'JARDIN_INFANTIL', label: 'Estudiante de jardín infantil' },
   { value: 'OTRO', label: 'Otro motivo' },
 ];
 
@@ -117,7 +117,7 @@ export function RecordAccessForm({
 
   const helperText = useMemo(() => {
     if (eventType === 'INGRESO') {
-      return 'Para ingresos no se requiere tipo de salida. Se registrara automaticamente como no aplica.';
+      return 'Para ingresos no se requiere tipo de salida. Se registrará automáticamente como no aplica.';
     }
 
     if (eventType === 'SALIDA') {
@@ -363,11 +363,11 @@ export function RecordAccessForm({
     }
 
     if (!validationKind) {
-      nextWarnings.push('Debes seleccionar un metodo de validacion.');
+      nextWarnings.push('Debes seleccionar un método de validación.');
     }
 
     if (contingencyMode === 'CONTINGENCIA_SIN_DISPOSITIVO' && validationKind !== 'MANUAL') {
-      nextWarnings.push('La contingencia sin dispositivo solo se usa con validacion manual.');
+      nextWarnings.push('La contingencia sin dispositivo solo se usa con validación manual.');
     }
 
     if (contingencyMode === 'CONTINGENCIA_SIN_DISPOSITIVO' && !contingencyReason) {
@@ -375,7 +375,7 @@ export function RecordAccessForm({
     }
 
     if (contingencyMode === 'CONTINGENCIA_SIN_DISPOSITIVO' && !notes.trim()) {
-      nextWarnings.push('Debes registrar una observacion para la contingencia.');
+      nextWarnings.push('Debes registrar una observación para la contingencia.');
     }
 
     if (!result) {
@@ -392,7 +392,7 @@ export function RecordAccessForm({
       currentEventPolicy.authenticatorIsExclusive &&
       !authenticatorPresented
     ) {
-      nextWarnings.push('La configuracion exige QR o PIN para este evento.');
+      nextWarnings.push('La configuración exige QR o PIN para este evento.');
     }
 
     if (
@@ -402,13 +402,13 @@ export function RecordAccessForm({
       !authenticatorPresented &&
       !notes.trim()
     ) {
-      nextWarnings.push('Agrega una observacion para justificar una salida sin QR o PIN.');
+      nextWarnings.push('Agrega una observación para justificar una salida sin QR o PIN.');
     }
 
     const studentsToCheck = selectedStudentsForRules;
 
     if (eventType === 'INGRESO' && studentsToCheck.some((student) => student.is_in_institution)) {
-      nextWarnings.push('Hay estudiante(s) que ya figuran dentro de la institucion.');
+      nextWarnings.push('Hay estudiante(s) que ya figuran dentro de la institución.');
     }
 
     if (eventType === 'SALIDA') {
@@ -417,7 +417,7 @@ export function RecordAccessForm({
       }
 
       if (exitKind === 'SOLO' && studentsToCheck.some((student) => !student.can_leave_alone)) {
-        nextWarnings.push('Hay estudiante(s) que no estan autorizados para salir solos.');
+        nextWarnings.push('Hay estudiante(s) que no están autorizados para salir solos.');
       }
     }
 
@@ -486,10 +486,10 @@ export function RecordAccessForm({
         .join(' ')
     : searchMode === 'student'
       ? selectedStudentId
-        ? 'Completa la informacion obligatoria para generar el resumen de seleccion.'
+        ? 'Completa la información obligatoria para generar el resumen de selección.'
         : 'Debes seleccionar un estudiante.'
       : selectedCount > 0
-        ? 'Completa la informacion obligatoria para generar el resumen de seleccion.'
+        ? 'Completa la información obligatoria para generar el resumen de selección.'
         : 'Debes seleccionar al menos un estudiante del curso.';
 
   const summaryIsWarning =
@@ -528,9 +528,9 @@ export function RecordAccessForm({
       <div className="md:col-span-2">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold text-slate-900">Busqueda de estudiantes</p>
+            <p className="text-sm font-semibold text-slate-900">Búsqueda de estudiantes</p>
             <p className="text-xs text-slate-500">
-              Selecciona el modo de busqueda para registrar el evento.
+              Selecciona el modo de búsqueda para registrar el evento.
             </p>
           </div>
 
@@ -608,7 +608,7 @@ export function RecordAccessForm({
                   </ul>
                 ) : (
                   <p className="px-3 py-2 text-sm text-slate-500">
-                    No hay coincidencias para la busqueda.
+                    No hay coincidencias para la búsqueda.
                   </p>
                 )}
               </div>
@@ -636,13 +636,13 @@ export function RecordAccessForm({
               {visibleStudents.map((student) => (
                 <option key={student.id} value={student.id}>
                   {student.first_name} {student.last_name} ·{' '}
-                  {student.is_in_institution ? 'En institucion' : 'Fuera'}
+                  {student.is_in_institution ? 'En institución' : 'Fuera'}
                 </option>
               ))}
             </select>
 
             <p className="mt-2 text-xs text-slate-500">
-              {visibleStudents.length} estudiante(s) coinciden con la busqueda.
+              {visibleStudents.length} estudiante(s) coinciden con la búsqueda.
             </p>
           </div>
         </>
@@ -738,7 +738,7 @@ export function RecordAccessForm({
                               {student.first_name} {student.last_name}
                             </p>
                             <p className="text-xs text-slate-500">
-                              Estado: {student.is_in_institution ? 'En institucion' : 'Fuera'}
+                              Estado: {student.is_in_institution ? 'En institución' : 'Fuera'}
                             </p>
                           </div>
                         </div>
@@ -850,7 +850,7 @@ export function RecordAccessForm({
 
       <div>
         <label htmlFor="validation_kind" className={fieldLabelClass(validationKindIsMissing)}>
-          Metodo validacion
+          Método de validación
           <RequiredMark />
         </label>
         <select
@@ -865,7 +865,7 @@ export function RecordAccessForm({
           disabled={!hasSelection}
           className={fieldClass(validationKindIsMissing)}
         >
-          <option value="">Selecciona un metodo</option>
+          <option value="">Selecciona un método</option>
           <option value="MANUAL">Manual</option>
           <option value="QR">QR</option>
           <option value="PIN">PIN</option>
@@ -898,7 +898,7 @@ export function RecordAccessForm({
           </select>
 
           <p className="mt-2 text-xs text-slate-500">
-            Solo se habilita cuando la validacion es manual. Reutiliza la busqueda por curso o por estudiante.
+            Solo se habilita cuando la validación es manual. Reutiliza la búsqueda por curso o por estudiante.
           </p>
         </div>
       ) : (
@@ -931,7 +931,7 @@ export function RecordAccessForm({
           </select>
 
           <p className="mt-2 text-xs text-slate-500">
-            Esta seleccion se aplica a todos los estudiantes del registro en curso y deja trazabilidad operativa.
+            Esta selección se aplica a todos los estudiantes del registro en curso y deja trazabilidad operativa.
           </p>
         </div>
       ) : (
@@ -963,7 +963,7 @@ export function RecordAccessForm({
 
       <div className="md:col-span-2">
         <label htmlFor="notes" className="mb-2 block text-sm font-medium text-slate-700">
-          Descripcion del evento
+          Descripción del evento
         </label>
         <textarea
           id="notes"
@@ -972,7 +972,7 @@ export function RecordAccessForm({
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
           onKeyDown={handleBlockedEnter}
-          placeholder="Ejemplo: retiro anticipado por cita medica, ingreso con justificacion, observaciones relevantes..."
+          placeholder="Ejemplo: retiro anticipado por cita médica, ingreso con justificación, observaciones relevantes..."
           className="w-full rounded-xl border border-slate-300 px-4 py-3"
         />
       </div>
@@ -989,7 +989,7 @@ export function RecordAccessForm({
             summaryIsWarning ? 'text-amber-900' : 'text-slate-800'
           }`}
         >
-          Resumen de seleccion
+          Resumen de selección
         </p>
         <p className={`mt-1 text-sm ${summaryIsWarning ? 'text-amber-800' : 'text-slate-600'}`}>
           {summaryMessage}
@@ -997,7 +997,7 @@ export function RecordAccessForm({
       </div>
 
       <div className="md:col-span-2 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3">
-        <p className="text-sm font-semibold text-sky-950">Politica aplicada</p>
+        <p className="text-sm font-semibold text-sky-950">Política aplicada</p>
         <p className="mt-1 text-sm text-sky-900">
           Ingreso:{' '}
           {accessPolicy.entry_requires_authenticator
@@ -1009,7 +1009,7 @@ export function RecordAccessForm({
           {accessPolicy.exit_requires_authenticator
             ? accessPolicy.exit_authenticator_is_exclusive
               ? 'QR/PIN obligatorio y excluyente'
-              : 'QR/PIN requerido con excepcion documentada'
+              : 'QR/PIN requerido con excepción documentada'
             : 'manual permitido'}.
         </p>
       </div>

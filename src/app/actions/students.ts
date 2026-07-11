@@ -12,7 +12,7 @@ export async function linkStudentByCodeAction(formData: FormData) {
   const code = String(formData.get('code') ?? '').trim().toUpperCase();
 
   if (!code) {
-    redirect('/students/link?kind=error&message=Ingresa+un+codigo+de+vinculacion');
+    redirect('/students/link?kind=error&message=Ingresa+un+código+de+vinculación');
   }
 
   await requireUser();
@@ -30,16 +30,16 @@ export async function linkStudentByCodeAction(formData: FormData) {
   const status = data?.status;
 
   if (status === 'invalid_code') {
-    redirect('/students/link?kind=error&message=Codigo+de+vinculacion+no+valido');
+    redirect('/students/link?kind=error&message=Código+de+vinculación+no+válido');
   }
 
   if (status === 'already_linked') {
-    redirect('/students/link?kind=info&message=Este+estudiante+ya+esta+vinculado+a+tu+cuenta');
+    redirect('/students/link?kind=info&message=Este+estudiante+ya+está+vinculado+a+tu+cuenta');
   }
 
   if (status === 'linked') {
     revalidatePath('/dashboard');
-    redirect('/dashboard?message=Vinculacion+exitosa');
+    redirect('/dashboard?message=Vinculación+éxitosa');
   }
 
   redirect('/students/link?kind=error&message=Respuesta+inesperada+del+servidor');
@@ -61,7 +61,7 @@ export async function unlinkStudentAction(formData: FormData) {
   }
 
   revalidatePath('/dashboard');
-  redirect('/dashboard?message=Desvinculacion+exitosa');
+  redirect('/dashboard?message=Desvinculación+éxitosa');
 }
 
 export async function updateStudentAction(formData: FormData) {
@@ -73,11 +73,11 @@ export async function updateStudentAction(formData: FormData) {
   const phone = phoneValue ? normalizeChileMobilePhone(phoneValue) : null;
 
   if (rutValue && !rut) {
-    redirect(`/students/${id}?message=El+RUT+ingresado+no+es+valido`);
+    redirect(`/students/${id}?message=El+RUT+ingresado+no+es+válido`);
   }
 
   if (phoneValue && !phone) {
-    redirect(`/students/${id}?message=El+telefono+debe+usar+formato+%2B56979999999`);
+    redirect(`/students/${id}?message=El+teléfono+debe+usar+formato+%2B56979999999`);
   }
 
   const supabase = await createClient();
@@ -91,7 +91,7 @@ export async function updateStudentAction(formData: FormData) {
   }
 
   revalidatePath(`/students/${id}`);
-  redirect(`/students/${id}?message=Actualizacion+exitosa`);
+  redirect(`/students/${id}?message=Actualizacion+éxitosa`);
 }
 
 export async function updateAttendanceStatusAction(formData: FormData) {

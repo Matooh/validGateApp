@@ -92,7 +92,7 @@ export default async function StudentDetailPage({
             <h1 className="mt-2 text-3xl font-bold text-slate-900">
               {student.first_name} {student.last_name}
             </h1>
-            <p className="mt-2 text-slate-600">Codigo de vinculacion: {student.link_code}</p>
+            <p className="mt-2 text-slate-600">Código de vinculación: {student.link_code}</p>
           </div>
           <div className="flex flex-col gap-3">
             <span
@@ -100,7 +100,7 @@ export default async function StudentDetailPage({
                 student.is_in_institution ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'
               }`}
             >
-              {student.is_in_institution ? 'Dentro de la institucion' : 'Fuera de la institucion'}
+              {student.is_in_institution ? 'Dentro de la institución' : 'Fuera de la institución'}
             </span>
             <span className="rounded-full bg-slate-100 px-4 py-2 text-sm text-slate-700">
               {student.can_leave_alone ? 'Puede salir solo' : 'No puede salir solo'}
@@ -115,14 +115,14 @@ export default async function StudentDetailPage({
         <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="space-y-6">
             <form action={updateStudentAction} className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-xl font-semibold text-slate-900">Configuracion del estudiante</h2>
+              <h2 className="text-xl font-semibold text-slate-900">Configuración del estudiante</h2>
               <input type="hidden" name="student_id" value={student.id} />
               <div>
                 <label htmlFor="rut" className="mb-2 block text-sm font-medium text-slate-700">RUT estudiante</label>
                 <input id="rut" name="rut" defaultValue={student.rut ?? ''} placeholder="12345678-5" className="w-full rounded-xl border border-slate-300 px-4 py-3" />
               </div>
               <div>
-                <label htmlFor="phone" className="mb-2 block text-sm font-medium text-slate-700">Telefono estudiante</label>
+                <label htmlFor="phone" className="mb-2 block text-sm font-medium text-slate-700">Teléfono estudiante</label>
                 <input id="phone" name="phone" defaultValue={student.phone ?? ''} placeholder="+56979999999" className="w-full rounded-xl border border-slate-300 px-4 py-3" />
               </div>
               <label className="flex items-center gap-3 rounded-2xl border border-slate-200 p-4 text-slate-700">
@@ -133,7 +133,7 @@ export default async function StudentDetailPage({
                 pendingLabel="Guardando..."
                 className="rounded-xl bg-sky-700 px-4 py-3 font-semibold text-white hover:bg-sky-800 disabled:cursor-not-allowed disabled:bg-sky-300"
               >
-                Guardar configuracion
+                Guardar configuración
               </PendingSubmitButton>
             </form>
 
@@ -149,13 +149,13 @@ export default async function StudentDetailPage({
                   links.map((link) => (
                     <article key={`${link.student_id}-${link.guardian_profile_id}`} className="rounded-2xl border border-slate-200 p-4">
                       <p className="font-medium text-slate-900">{link.guardian_name || 'Usuario sin nombre'}</p>
-                      <p className="mt-1 text-sm text-slate-500">{link.guardian_email || 'Sin correo'} · {link.relation_type || 'Sin relacion declarada'}</p>
+                      <p className="mt-1 text-sm text-slate-500">{link.guardian_email || 'Sin correo'} · {link.relation_type || 'Sin relación declarada'}</p>
                       <p className="mt-2 text-xs text-slate-400">Vinculado el {new Date(link.linked_at).toLocaleString('es-CL')}</p>
                     </article>
                   ))
                 ) : (
                   <p className="rounded-2xl border border-dashed border-slate-300 p-5 text-sm text-slate-500">
-                    Aun no hay cuentas vinculadas a este estudiante.
+                    Aún no hay cuentas vinculadas a este estudiante.
                   </p>
                 )}
               </div>

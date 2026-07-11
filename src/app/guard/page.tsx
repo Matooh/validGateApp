@@ -78,12 +78,12 @@ export default async function GuardPage({
     .order('occurred_at', { ascending: false })
     .limit(10);
 
-  const institutionName = institution?.name ?? 'Institucion no disponible';
+  const institutionName = institution?.name ?? 'Institución no disponible';
   const recentEventStorageScope = `guard:${profile?.role ?? 'SIN_ROL'}:${user.id}:access`;
 
   return (
     <main className="min-h-screen bg-slate-50">
-      <FeedbackToast message={toastMessage} tone={toastTone} title="Porteria" />
+      <FeedbackToast message={toastMessage} tone={toastTone} title="Portería" />
       <AppNav
         role={profile?.role}
         displayName={
@@ -95,16 +95,16 @@ export default async function GuardPage({
       <section className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-            Logica de control de ingreso y salida
+            Lógica de control de ingreso y salida
           </h1>
           <p className="mt-2 text-sm text-slate-600 sm:text-base">
-            Pantalla orientada a porteria, administracion o docente autorizado.
+            Pantalla orientada a portería, administración o docente autorizado.
           </p>
         </div>
 
         <section className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:grid-cols-2 lg:grid-cols-3">
           <div className="rounded-2xl bg-slate-50 p-4">
-            <p className="text-sm text-slate-500">Institucion operativa</p>
+            <p className="text-sm text-slate-500">Institución operativa</p>
             <p className="mt-1 text-xl font-bold text-slate-900 sm:text-2xl">
               {institutionName}
             </p>
@@ -159,8 +159,8 @@ export default async function GuardPage({
                   const student = Array.isArray(event.students)
                     ? event.students[0]
                     : event.students;
-                  // TODO: reemplazar por una condicion real cuando exista un estado
-                  // de evento nuevo/no leido o de visualizacion por usuario.
+                  // TODO: reemplazar por una condición real cuando exista un estado
+                  // de evento nuevo/no leído o de visualización por usuario.
                   const shouldShowNewBadge = true;
 
                   return (
@@ -197,7 +197,7 @@ export default async function GuardPage({
                           {event.notes ? (
                             <p className="mt-2 text-sm text-slate-600">
                               <span className="font-medium text-slate-800">
-                                Descripcion:
+                                Descripción:
                               </span>{' '}
                               {event.notes}
                             </p>
@@ -213,7 +213,7 @@ export default async function GuardPage({
                 })
               ) : (
                 <div className="rounded-2xl border border-dashed border-slate-200 p-6 text-sm text-slate-500">
-                  Aun no hay eventos registrados para mostrar.
+                  Aún no hay eventos registrados para mostrar.
                 </div>
               )}
             </div>

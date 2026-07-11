@@ -6,7 +6,7 @@ export function LinkStudentForm() {
     <form action={linkStudentByCodeAction} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div>
         <label htmlFor="code" className="mb-2 block text-sm font-medium text-slate-700">
-          Codigo de vinculacion
+          Código de vinculación
         </label>
         <input
           id="code"
