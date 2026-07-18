@@ -6,5 +6,4 @@ node_modules
 *.log
 tsconfig.tsbuildinfo
 
-docs/validgate-context
-docs/validgate_sistema_actual.md
+docs/

@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 import { createClient } from '@/lib/supabase/server';
@@ -58,7 +59,17 @@ export async function signUpAction(_: FormState, formData: FormData): Promise<Fo
 
 export async function signOutAction() {
   const supabase = await createClient();
-  await supabase.auth.signOut();
+  const { error } = await supabase.auth.signOut({ scope: 'global' });
+
+  if (error) {
+    const cookieStore = await cookies();
+
+    cookieStore
+      .getAll()
+      .filter(({ name }) => name.startsWith('sb-') && name.includes('-auth-token'))
+      .forEach(({ name }) => cookieStore.delete(name));
+  }
+
   redirect('/?toast=LOGOUT_SUCCESS');
 }
 

@@ -24,6 +24,7 @@ export default async function LoginPage({
         message={toastMessage}
         tone={toastCode === 'LOGOUT_SUCCESS' ? 'success' : 'info'}
         title="Acceso"
+        clearQueryParams={['toast', 'message']}
       />
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 lg:grid lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
         <section className="space-y-6">

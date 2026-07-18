@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { Squash as Hamburger } from 'hamburger-react';
 
+import { signOutAction } from '@/app/actions/auth';
+
 type NavItem = {
   href: string;
   label: string;
@@ -142,7 +144,6 @@ export function AppChrome({
             id="app-side-menu"
             className="absolute left-0 top-0 z-10 flex h-full w-[min(20rem,82vw)] flex-col border-r border-slate-700 bg-slate-950 text-white shadow-2xl"
             aria-label="Menú lateral"
-            onClick={closeMenu}
           >
             <div className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
               <div className="min-w-0">
@@ -180,14 +181,15 @@ export function AppChrome({
             </nav>
 
             <div className="space-y-3 border-t border-white/10 p-4">
-              <Link
-                href="/"
-                onClick={closeMenu}
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-medium text-slate-100 hover:bg-white/10"
-              >
-                <Icon name="logout" />
-                <span>Logout</span>
-              </Link>
+              <form action={signOutAction}>
+                <button
+                  type="submit"
+                  className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-medium text-slate-100 hover:bg-white/10"
+                >
+                  <Icon name="logout" />
+                  <span>Logout</span>
+                </button>
+              </form>
               <p className="text-sm font-semibold text-white">ValidGate Version x.x.x</p>
             </div>
           </aside>

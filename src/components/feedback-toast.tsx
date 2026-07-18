@@ -29,6 +29,7 @@ type FeedbackToastProps = {
   tone?: ToastTone;
   title?: string;
   placementClassName?: string;
+  clearQueryParams?: string[];
 };
 
 export function FeedbackToast({
@@ -36,6 +37,7 @@ export function FeedbackToast({
   tone = 'info',
   title,
   placementClassName = 'fixed z-50 w-[min(92vw,26rem)]',
+  clearQueryParams = [],
 }: FeedbackToastProps) {
   const [open, setOpen] = useState(Boolean(message));
   const [mounted, setMounted] = useState(false);
@@ -44,6 +46,24 @@ export function FeedbackToast({
     setMounted(true);
     setOpen(Boolean(message));
   }, [message]);
+
+  useEffect(() => {
+    if (!message || clearQueryParams.length === 0) return;
+
+    const url = new URL(window.location.href);
+    const hadQueryParam = clearQueryParams.some((queryParam) =>
+      url.searchParams.has(queryParam),
+    );
+
+    if (!hadQueryParam) return;
+
+    clearQueryParams.forEach((queryParam) => url.searchParams.delete(queryParam));
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+  }, [clearQueryParams, message]);
 
   useEffect(() => {
     if (!open || !message) return;

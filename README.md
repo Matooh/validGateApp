@@ -1,159 +1,291 @@
-# ValidGate MVP
+# VALIDGATE
 
-MVP rapido para tesis con **Next.js + Vercel + Supabase**.
+## Sistema de control de ingreso y salida estudiantil
 
-Incluye:
-- login y registro simple
-- remember me en login
-- mensajes de login genericos para evitar enumeracion de usuarios
-- configuracion de perfil
-- configuracion ADMIN de politica de ingreso/salida con autenticador QR/PIN obligatorio o flexible
-- vinculacion de estudiante por codigo
-- vista del estudiante con estado dentro/fuera de la institucion
-- school timetable con colores de asistencia
-- modulo de porteria para registrar ingresos y salidas
-- trazabilidad de eventos de acceso, incluyendo metodo, resultado, politica aplicada y rechazos operativos
+VALIDGATE es una aplicación web orientada a mejorar el control de ingreso, salida y retiro de estudiantes en instituciones educativas.
 
-## 1) Crear el proyecto en Supabase
+El proyecto busca reducir la dependencia de procedimientos manuales, facilitar la validación de las personas involucradas y mantener un registro trazable de los eventos ocurridos dentro del proceso.
 
-1. Crea un proyecto en Supabase.
-2. En **Project Settings > Data API**, copia:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-3. En SQL Editor ejecuta primero:
-   - `supabase/migrations/001_init.sql`
-   - luego `supabase/migrations/002_seed.sql`
-- y si quieres probar apoderado multi-institucion, tambien `supabase/migrations/003_seed_multi_institution.sql`
-- para la configuracion de seguridad de ingreso/salida, ejecuta `supabase/migrations/005_access_control_policies.sql`
-- para credenciales QR opacas, temporales y de uso unico, ejecuta `supabase/migrations/006_student_qr_credentials.sql`
-- para reforzar reglas de salida por QR, ejecuta `supabase/migrations/007_enforce_qr_exit_rules.sql`
-- para vincular usuarios ESTUDIANTE con `students`, ejecuta `supabase/migrations/008_student_profiles.sql`
-- para que estudiantes vean sus apoderados/responsables, ejecuta `supabase/migrations/009_student_guardian_visibility.sql`
-- para agregar RUT y telefono chileno a estudiantes/adultos, ejecuta `supabase/migrations/010_contact_identity_fields.sql`
-- para normalizar tipos de apoderado/responsable, ejecuta `supabase/migrations/011_guardian_relation_types.sql`
-- para solicitudes de autorizacion y salida directa de estudiante, ejecuta `supabase/migrations/012_authorization_requests.sql` hasta `supabase/migrations/015_student_self_exit.sql`
+> Proyecto desarrollado como parte del proceso de titulación de Ingeniería en Computación e Informática.
 
-## 2) Crear la app local
+---
 
-```bash
-npm install
-cp .env.example .env.local
-npm run dev
-```
+## El problema
 
-## 3) Variables de entorno
+En diferentes instituciones educativas, el ingreso y la salida de estudiantes todavía pueden depender de procedimientos como:
 
-Completa `.env.local`:
+- reconocimiento visual por parte del personal;
+- confirmaciones verbales;
+- registros manuales;
+- información distribuida entre distintas personas;
+- validaciones realizadas bajo presión durante horarios de alta demanda.
 
-```env
-NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
-```
+Estas condiciones pueden provocar desorden, demoras, errores de identificación y dificultades para reconstruir posteriormente lo ocurrido.
 
-## 4) Configuracion recomendada en Supabase Auth
+VALIDGATE propone centralizar este proceso y conservar evidencia de cada ingreso, salida, retiro, autorización o rechazo.
 
-Para salir rapido con el MVP:
-- desactiva temporalmente la confirmacion obligatoria de email
-- crea usuarios desde la propia app o desde **Authentication > Users**
+---
 
-## 5) Asignar roles e institucion a usuarios ya creados
+## La propuesta
 
-Despues de registrar usuarios, ejecuta algo como esto en SQL Editor:
+La solución permite administrar la información necesaria para controlar los eventos de acceso de los estudiantes.
 
-```sql
-update public.profiles
-set institution_id = 1,
-    role = 'PORTERIA',
-    first_name = 'Admin',
-    last_name = 'Porteria'
-where email = 'admin@validgate.app';
+El sistema considera la participación de estudiantes, apoderados, personas autorizadas, personal de portería y administradores institucionales.
 
-update public.profiles
-set institution_id = 1,
-    role = 'APODERADO',
-    first_name = 'Paula',
-    last_name = 'Rojas'
-where email = 'apoderado@validgate.app';
+Cada evento puede registrar información como:
 
-insert into public.guardian_students (guardian_profile_id, student_id, relation_type)
-select id, 1, 'MADRE'
-from public.profiles
-where email = 'apoderado@validgate.app'
-on conflict (guardian_profile_id, student_id) do nothing;
-```
+- estudiante involucrado;
+- fecha y hora;
+- tipo de evento;
+- persona responsable;
+- método de validación utilizado;
+- resultado de la operación;
+- política institucional aplicada;
+- observaciones y motivos de rechazo.
 
-## 6) Datos demo incluidos
+De esta manera, la institución puede consultar el historial del proceso y contar con información disponible ante revisiones, incidentes o consultas de los apoderados.
 
-El seed base deja:
-- institucion demo con id `1`
-- curso `Primero Basico A`
-- estudiante `Lucas Perez` con codigo `VG-LUCAS`
-- estudiante `Sofia Mora` con codigo `VG-SOFIA`
-- bloques de horario y asistencia demo
+---
 
-El seed opcional `003_seed_multi_institution.sql` agrega:
-- segunda institucion `Colegio Valle Norte`
-- curso `Segundo Basico B`
-- estudiante `Martina Diaz` con codigo `VG-MARTINA`
+## ¿Cómo funciona actualmente?
 
-Con eso, un apoderado puede vincular estudiantes de mas de una institucion y el dashboard mostrara los nombres reales de todas las instituciones asociadas.
+VALIDGATE adapta sus funciones según el rol de la persona que inicia sesión. Cada usuario accede únicamente a la información y las acciones relacionadas con sus responsabilidades.
 
-## 7) Despliegue en Vercel
+### Personal de portería
 
-La via mas rapida:
-1. Sube este proyecto a GitHub.
-2. En Vercel, crea **New Project**.
-3. Conecta el repo.
-4. Agrega las mismas variables de entorno.
-5. Deploy.
+El personal de portería puede:
 
-Cada push a GitHub generara un deployment automaticamente.
+1. Iniciar sesión y acceder al módulo de control.
+2. Identificar al estudiante mediante búsqueda o credencial QR.
+3. Seleccionar si se registrará un ingreso o una salida.
+4. Indicar el método utilizado para realizar la validación.
+5. Registrar el resultado y agregar observaciones cuando corresponda.
+6. Confirmar la operación.
 
-## 8) Rutas principales
+El evento queda almacenado con su fecha, hora, estudiante, responsable, método de validación y resultado.
 
-- `/` login
-- `/register` registro
-- `/dashboard` panel principal
-- `/students/link` vincular estudiante
-- `/students/[id]` detalle del estudiante
-- `/settings` configuracion de perfil
-- `/guard` modulo de porteria
-- `/authentications` credenciales QR de estudiantes vinculados
+Cuando el evento es aprobado, el sistema actualiza el estado del estudiante como dentro o fuera de la institución. Cuando la operación es rechazada, el intento queda registrado, pero no modifica su estado.
 
-## 9) Notas practicas
+### Apoderados
 
-- El modelo fue adaptado para Supabase usando `auth.users` + `public.profiles`.
-- El trigger `handle_new_user` crea el perfil automaticamente.
-- El trigger `apply_access_event` actualiza `students.is_in_institution` al registrar ingresos/salidas aprobados.
-- La asistencia por bloque se muestra con colores desde `attendance_blocks`.
-- La tabla `institution_access_policies` permite configurar si ingreso y salida requieren autenticador, y si esa regla es excluyente.
-- Si una regla operativa falla, el evento queda auditado como `RECHAZADO` sin cambiar el estado dentro/fuera del estudiante.
-- La tabla `student_qr_credentials` guarda credenciales QR opacas con expiracion, revocacion y uso unico.
-- El QR solo contiene `validgate-auth:{uuid}`. Los datos del estudiante se consultan en servidor al validar desde porteria.
-- La confirmacion QR en porteria bloquea salidas si el estudiante ya esta fuera o si no tiene permiso para salir solo.
-- La tabla `student_profiles` relaciona `profiles.id` con `students.id` para que el rol `ESTUDIANTE` genere solo su propia credencial QR.
-- La migracion `008_student_profiles.sql` vincula a `alan.estudiante@validgate.app` con el estudiante Alan de su institucion cuando coinciden nombres y rol.
-- La migracion `009_student_guardian_visibility.sql` permite que un estudiante consulte sus apoderados mediante RPC sin abrir lectura amplia sobre `profiles`.
-- La migracion `010_contact_identity_fields.sql` agrega `rut` y `phone` opcionales. El RUT se normaliza con `rut.js` y el telefono usa formato `+56979999999`.
-- La migracion `011_guardian_relation_types.sql` normaliza `guardian_students.relation_type` en `APODERADO_PRINCIPAL`, `APODERADO` y `RETIRADOR_AUTORIZADO`.
+Los apoderados pueden:
 
-## 10) Librerias preparadas para evolucionar el MVP
+1. Iniciar sesión y vincular estudiantes mediante un código.
+2. Consultar los estudiantes asociados a su cuenta.
+3. Revisar su estado actual, horario e historial de eventos.
+4. Consultar las instituciones a las que pertenece cada estudiante.
+5. Gestionar solicitudes y autorizaciones de salida disponibles.
+6. Acceder a las credenciales habilitadas para sus estudiantes.
 
-- QR dinamico: `qrcode` para generar codigos y `react-qr-code` para renderizarlos en la credencial del estudiante.
-- Escaneo QR en porteria: `html5-qrcode` para lectura con camara desde navegador.
-- Tokens seguros y uso unico: `jose` para firmar/verificar tokens y `uuid` para `jti`, eventos y auditoria.
-- PIN temporal: `uuid`, `zod` y reglas server-side para vencimiento, intentos y bloqueo.
-- Formularios de autorizacion y configuracion: `zod`, `react-hook-form` y `@hookform/resolvers`.
-- Notificaciones al apoderado y feedback operativo: `sonner`.
-- MFA ADMIN/PORTERIA: se usara `@supabase/supabase-js`, ya incluido, mediante `supabase.auth.mfa`.
-- Dashboard por institucion: se apoya en Supabase/RLS y en las tablas existentes de institucion, estudiantes y eventos.
+Un mismo apoderado puede mantener estudiantes vinculados a más de una institución.
 
-## 11) Siguiente mejora recomendada
+### Estudiantes
 
-Cuando este MVP ya corra:
-- integrar lector de camara real con `html5-qrcode`
-- implementar PIN temporal real con vencimiento y limite de intentos
-- implementar autorizaciones temporales
-- implementar dashboard por institucion
-- implementar notificaciones al apoderado
-- implementar MFA de Supabase para ADMIN y PORTERIA
+Los estudiantes pueden:
+
+1. Iniciar sesión y acceder a su información personal.
+2. Consultar si se encuentran dentro o fuera de la institución.
+3. Revisar su horario y los bloques de asistencia.
+4. Consultar sus apoderados o responsables asociados.
+5. Generar su credencial QR.
+6. Solicitar una salida autónoma cuando tengan el permiso correspondiente.
+
+El estudiante puede solicitar una salida, pero no autorizarla directamente.
+
+### Administradores
+
+Los administradores pueden configurar las políticas utilizadas por la institución para controlar los ingresos y salidas.
+
+Entre estas configuraciones se encuentra la posibilidad de definir si mecanismos como QR o PIN serán obligatorios, flexibles o estarán disponibles como métodos alternativos.
+
+### Registro y trazabilidad
+
+Toda operación relevante genera un registro consultable posteriormente.
+
+Esto permite conocer:
+
+- qué estudiante estuvo involucrado;
+- qué acción se realizó;
+- cuándo ocurrió;
+- quién la registró;
+- qué método de validación se utilizó;
+- si la operación fue aprobada o rechazada;
+- qué observaciones fueron ingresadas.
+
+---
+
+## Funcionalidades principales
+
+### Autenticación y acceso por rol
+
+Cada usuario accede a las funciones relacionadas con sus responsabilidades dentro del sistema.
+
+Los roles considerados son:
+
+- **Administrador**
+- **Portería**
+- **Apoderado**
+- **Estudiante**
+
+### Gestión de estudiantes y responsables
+
+VALIDGATE permite mantener relaciones entre:
+
+- estudiantes;
+- apoderados;
+- personas autorizadas para retiro;
+- cursos;
+- instituciones educativas.
+
+### Control de ingreso y salida
+
+El personal de portería puede registrar ingresos, salidas y retiros, verificando previamente las condiciones asociadas al estudiante.
+
+### Credenciales QR
+
+Los estudiantes pueden disponer de credenciales QR temporales para apoyar su identificación.
+
+Estas credenciales:
+
+- no exponen datos personales directamente;
+- tienen una vigencia limitada;
+- pueden ser revocadas;
+- pueden restringirse a un solo uso.
+
+### Autorizaciones y retiros
+
+Los apoderados pueden gestionar solicitudes y autorizaciones asociadas al retiro de sus estudiantes.
+
+El sistema también contempla situaciones como:
+
+- retiro anticipado;
+- retiro por una persona autorizada;
+- salida autónoma del estudiante;
+- rechazo por falta de autorización;
+- rechazo por inconsistencias en el estado del estudiante.
+
+### Horarios y asistencia
+
+Los usuarios autorizados pueden consultar:
+
+- horarios del estudiante;
+- estado dentro o fuera de la institución;
+- bloques de asistencia;
+- historial de ingresos y salidas.
+
+### Trazabilidad
+
+Las operaciones relevantes quedan registradas para conocer:
+
+- qué ocurrió;
+- cuándo ocurrió;
+- quién realizó la acción;
+- cómo se validó;
+- cuál fue el resultado;
+- por qué una operación fue rechazada.
+
+---
+
+## Usuarios del sistema
+
+### Administrador
+
+Puede gestionar la configuración institucional, estudiantes, cursos, usuarios, permisos y mecanismos de validación.
+
+### Portería
+
+Puede buscar estudiantes, consultar autorizaciones y registrar ingresos, salidas o retiros.
+
+### Apoderado
+
+Puede vincular estudiantes, revisar su información, consultar eventos y gestionar autorizaciones.
+
+### Estudiante
+
+Puede consultar su estado, horario, credencial e información relacionada con sus responsables autorizados.
+
+El estudiante no autoriza directamente su propio retiro. La aprobación depende de las reglas institucionales, las autorizaciones registradas y la validación realizada por el personal correspondiente.
+
+---
+
+## Alcance del prototipo
+
+La versión actual se concentra en demostrar el flujo principal del sistema:
+
+- autenticación de usuarios;
+- acceso diferenciado por rol;
+- vinculación entre estudiantes y apoderados;
+- consulta del estado del estudiante;
+- registro de ingresos y salidas;
+- generación y validación de credenciales QR;
+- solicitudes de autorización;
+- control de salidas;
+- registro de eventos aceptados y rechazados;
+- consulta de trazabilidad.
+
+El reconocimiento facial se considera una posible evolución futura y no forma parte obligatoria del prototipo actual.
+
+---
+
+## Estado del proyecto
+
+VALIDGATE se encuentra en desarrollo como un producto mínimo viable.
+
+Las funcionalidades se incorporan progresivamente, priorizando:
+
+1. seguridad del flujo;
+2. trazabilidad de las operaciones;
+3. facilidad de uso para portería;
+4. separación de permisos por rol;
+5. protección de la información;
+6. validación mediante pruebas controladas.
+
+---
+
+## Tecnologías utilizadas
+
+El proyecto utiliza tecnologías web y servicios en la nube que permiten construir una solución escalable y accesible desde distintos dispositivos.
+
+Entre las principales tecnologías se encuentran:
+
+- Next.js
+- React
+- TypeScript
+- Supabase
+- PostgreSQL
+- Vercel
+
+Los detalles de instalación y configuración se encuentran en:
+
+- [`docs/CONFIGURACION_LOCAL.md`](docs/CONFIGURACION_LOCAL.md)
+
+---
+
+## Evolución prevista
+
+Entre las capacidades consideradas para etapas posteriores se encuentran:
+
+- validación mediante PIN temporal;
+- notificaciones a apoderados;
+- paneles institucionales con métricas;
+- gestión ampliada de autorizaciones;
+- autenticación reforzada para roles críticos;
+- integración con dispositivos o controles físicos;
+- evaluación jurídica y técnica de mecanismos biométricos.
+
+---
+
+## Propósito académico
+
+VALIDGATE forma parte de un proyecto de título enfocado en el análisis, diseño y desarrollo de una solución informática para apoyar el control seguro de ingreso y salida estudiantil.
+
+El proyecto busca demostrar cómo una herramienta digital puede aportar mayor orden, trazabilidad y capacidad de supervisión a un proceso institucional cotidiano y sensible.
+
+---
+
+## Autor
+
+**Matías Ignacio Reyes Bettancourt**  
+Ingeniería en Computación e Informática  
+Universidad Andrés Bello  
+Santiago, Chile — 2026
