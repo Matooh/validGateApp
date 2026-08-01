@@ -1,4 +1,7 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
+
+import { ProtectedSessionGuard } from '@/components/protected-session-guard';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -9,7 +12,12 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="es">
-      <body>{children}</body>
+      <body>
+        <Suspense fallback={null}>
+          <ProtectedSessionGuard />
+        </Suspense>
+        {children}
+      </body>
     </html>
   );
 }

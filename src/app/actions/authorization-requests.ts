@@ -52,13 +52,9 @@ export type GuardianPendingAuthorizationRequest = {
   expiresAt: string;
 };
 
-type AuthorizationRequestSnapshot = {
-  id: string;
-  institution_id: number;
-  student_id: number;
-  guardian_profile_id: string;
-  status: string;
-  expires_at: string;
+type AuthorizationResponseRpcRow = {
+  request_id: string;
+  message_code: AuthorizationMessageCode;
 };
 
 type SupabaseActionError = {
@@ -323,73 +319,41 @@ export async function respondToAuthorizationRequest(
   }
 
   const supabase = await createClient();
-  const { data: request } = await supabase
-    .from('authorization_requests')
-    .select('id, institution_id, student_id, guardian_profile_id, status, expires_at')
-    .eq('id', requestId)
-    .eq('guardian_profile_id', user.id)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc('respond_to_authorization_request', {
+    p_request_id: requestId,
+    p_decision: decision,
+    p_note: note?.trim() || null,
+  });
+  const rpcResult = (Array.isArray(data) ? data[0] : data) as AuthorizationResponseRpcRow | null;
 
-  const typedRequest = request as AuthorizationRequestSnapshot | null;
-
-  if (!typedRequest) {
-    return { success: false, messageCode: 'AUTH_REQUEST_FORBIDDEN' };
-  }
-
-  if (typedRequest.status !== 'PENDING') {
-    return { success: false, messageCode: 'AUTH_REQUEST_NOT_ALLOWED' };
-  }
-
-  if (new Date(typedRequest.expires_at).getTime() <= Date.now()) {
-    await supabase
-      .from('authorization_requests')
-      .update({ status: 'EXPIRED' })
-      .eq('id', typedRequest.id)
-      .eq('status', 'PENDING');
-
-    revalidatePath('/dashboard');
-    return { success: false, messageCode: 'AUTH_REQUEST_EXPIRED' };
-  }
-
-  const { error: updateError } = await supabase
-    .from('authorization_requests')
-    .update({
-      status: decision,
-      guardian_response_note: note?.trim() || null,
-      responded_at: new Date().toISOString(),
-    })
-    .eq('id', typedRequest.id)
-    .eq('status', 'PENDING');
-
-  if (updateError) {
+  if (error || !rpcResult) {
+    logAuthorizationPostError({
+      action: 'respond_to_authorization_request',
+      httpStatus: 500,
+      publicCode: 'AUTH_REQUEST_FAILED',
+      internalCode: error?.code ?? 'AUTH_RESPONSE_EMPTY_RPC_RESPONSE',
+      userId: user.id,
+      supabaseError: error,
+    });
     return { success: false, messageCode: 'AUTH_REQUEST_FAILED' };
   }
 
-  if (decision === 'APPROVED') {
-    // TODO: mover aprobación + creacion de autorización a una RPC transaccional.
-    const { error: authorizationError } = await supabase
-      .from('student_exit_authorizations')
-      .insert({
-        authorization_request_id: typedRequest.id,
-        institution_id: typedRequest.institution_id,
-        student_id: typedRequest.student_id,
-        guardian_profile_id: typedRequest.guardian_profile_id,
-        valid_until: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-        created_by_profile_id: user.id,
-      });
-
-    if (authorizationError) {
-      return { success: false, messageCode: 'AUTH_REQUEST_FAILED' };
-    }
+  if (
+    rpcResult.message_code !== 'AUTH_REQUEST_APPROVED' &&
+    rpcResult.message_code !== 'AUTH_REQUEST_REJECTED'
+  ) {
+    revalidatePath('/dashboard');
+    return { success: false, messageCode: rpcResult.message_code };
   }
 
   revalidatePath('/dashboard');
   revalidatePath('/guard');
+  revalidatePath('/authentications');
 
   return {
     success: true,
-    messageCode: decision === 'APPROVED' ? 'AUTH_REQUEST_APPROVED' : 'AUTH_REQUEST_REJECTED',
-    requestId: typedRequest.id,
+    messageCode: rpcResult.message_code,
+    requestId: rpcResult.request_id,
   };
 }
 

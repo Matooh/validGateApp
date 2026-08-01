@@ -14,7 +14,9 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.verifyOtp({ type, token_hash });
 
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
+      const destination = new URL(next, origin);
+      destination.searchParams.set('session_init', '1');
+      return NextResponse.redirect(destination);
     }
   }
 

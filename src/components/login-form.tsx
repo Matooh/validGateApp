@@ -26,19 +26,24 @@ export function LoginForm() {
   useEffect(() => {
     if (pending || state.success || !state.message) return;
 
+    window.sessionStorage.removeItem('validgate-tab-session');
+    window.localStorage.removeItem('validgate-persistent-session');
     setToastAttempt(submitAttempt);
     setToastMessage(state.message);
   }, [pending, state.message, state.success, submitAttempt]);
 
   function handleSubmit() {
     setSubmitAttempt((current) => current + 1);
+    window.sessionStorage.setItem('validgate-tab-session', 'active');
 
     if (rememberMe && email) {
       window.localStorage.setItem('validgate-remembered-email', email);
+      window.localStorage.setItem('validgate-persistent-session', 'active');
       return;
     }
 
     window.localStorage.removeItem('validgate-remembered-email');
+    window.localStorage.removeItem('validgate-persistent-session');
   }
 
   return (
@@ -77,6 +82,7 @@ export function LoginForm() {
         <label className="flex items-center gap-2 text-slate-600">
           <input
             type="checkbox"
+            name="remember_me"
             checked={rememberMe}
             onChange={(event) => setRememberMe(event.target.checked)}
             className="h-4 w-4 rounded border-slate-300"

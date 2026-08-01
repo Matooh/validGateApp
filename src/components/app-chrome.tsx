@@ -101,6 +101,11 @@ export function AppChrome({
 
   const closeMenu = () => setIsMenuOpen(false);
 
+  const clearBrowserSessionMarkers = () => {
+    window.sessionStorage.removeItem('validgate-tab-session');
+    window.localStorage.removeItem('validgate-persistent-session');
+  };
+
   return (
     <>
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
@@ -181,7 +186,7 @@ export function AppChrome({
             </nav>
 
             <div className="space-y-3 border-t border-white/10 p-4">
-              <form action={signOutAction}>
+              <form action={signOutAction} onSubmit={clearBrowserSessionMarkers}>
                 <button
                   type="submit"
                   className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-medium text-slate-100 hover:bg-white/10"

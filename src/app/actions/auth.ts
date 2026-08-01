@@ -10,9 +10,12 @@ import { normalizeRut } from '@/lib/chile/rut';
 import { APP_MESSAGES } from '@/lib/messages';
 import type { FormState } from '@/lib/types';
 
+const SESSION_PERSISTENCE_COOKIE = 'validgate-session-persistence';
+
 export async function signInAction(_: FormState, formData: FormData): Promise<FormState> {
   const email = String(formData.get('email') ?? '').trim();
   const password = String(formData.get('password') ?? '').trim();
+  const rememberMe = formData.get('remember_me') === 'on';
 
   if (!email || !password) {
     return { success: false, message: APP_MESSAGES.auth.loginRequired };
@@ -23,6 +26,32 @@ export async function signInAction(_: FormState, formData: FormData): Promise<Fo
 
   if (error) {
     return { success: false, message: APP_MESSAGES.auth.genericLoginError };
+  }
+
+  const cookieStore = await cookies();
+  cookieStore.set(
+    SESSION_PERSISTENCE_COOKIE,
+    rememberMe ? 'persistent' : 'session',
+    {
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      ...(rememberMe ? { maxAge: 400 * 24 * 60 * 60 } : {}),
+    },
+  );
+
+  if (!rememberMe) {
+    cookieStore
+      .getAll()
+      .filter(({ name }) => name.startsWith('sb-') && name.includes('-auth-token'))
+      .forEach(({ name, value }) => {
+        cookieStore.set(name, value, {
+          path: '/',
+          sameSite: 'lax',
+          secure: process.env.NODE_ENV === 'production',
+        });
+      });
   }
 
   redirect('/dashboard?toast=LOGIN_SUCCESS');
@@ -69,6 +98,9 @@ export async function signOutAction() {
       .filter(({ name }) => name.startsWith('sb-') && name.includes('-auth-token'))
       .forEach(({ name }) => cookieStore.delete(name));
   }
+
+  const cookieStore = await cookies();
+  cookieStore.delete(SESSION_PERSISTENCE_COOKIE);
 
   redirect('/?toast=LOGOUT_SUCCESS');
 }

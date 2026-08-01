@@ -3,6 +3,8 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
+import { createClient } from '@/lib/supabase/client';
+
 type DashboardAutoRefreshProps = {
   expiresAt: Array<string | null | undefined>;
 };
@@ -12,29 +14,52 @@ export function DashboardAutoRefresh({ expiresAt }: DashboardAutoRefreshProps) {
   const refreshKey = expiresAt.filter(Boolean).join('|');
 
   useEffect(() => {
+    const supabase = createClient();
+    const refreshDashboard = () => router.refresh();
     const expirationTimes = expiresAt
       .map((value) => (value ? new Date(value).getTime() : Number.NaN))
       .filter((value) => Number.isFinite(value));
 
-    if (expirationTimes.length === 0) return;
+    const nextExpiration = expirationTimes.length > 0 ? Math.min(...expirationTimes) : null;
+    const expirationTimerId = nextExpiration === null
+      ? null
+      : window.setTimeout(
+          refreshDashboard,
+          Math.max(nextExpiration - Date.now() + 1000, 0),
+        );
 
-    const nextExpiration = Math.min(...expirationTimes);
-    const delay = Math.max(nextExpiration - Date.now() + 1000, 0);
-    const timerId = window.setTimeout(() => {
-      router.refresh();
-    }, delay);
+    const realtimeChannel = supabase
+      .channel('dashboard-state-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'authorization_requests' },
+        refreshDashboard,
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'students' },
+        refreshDashboard,
+      )
+      .subscribe();
 
-    const refreshIfExpired = () => {
-      if (document.visibilityState === 'visible' && nextExpiration <= Date.now()) {
-        router.refresh();
-      }
+    // Respaldo para entornos donde Realtime no esté disponible temporalmente.
+    const fallbackIntervalId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') refreshDashboard();
+    }, 15_000);
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') refreshDashboard();
     };
 
-    document.addEventListener('visibilitychange', refreshIfExpired);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    window.addEventListener('focus', refreshDashboard);
 
     return () => {
-      window.clearTimeout(timerId);
-      document.removeEventListener('visibilitychange', refreshIfExpired);
+      if (expirationTimerId !== null) window.clearTimeout(expirationTimerId);
+      window.clearInterval(fallbackIntervalId);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.removeEventListener('focus', refreshDashboard);
+      void supabase.removeChannel(realtimeChannel);
     };
   }, [router, refreshKey]);
 
