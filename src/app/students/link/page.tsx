@@ -1,3 +1,5 @@
+import { redirect } from 'next/navigation';
+
 import { AppNav } from '@/components/app-nav';
 import { LinkStudentForm } from '@/components/link-student-form';
 import { requireUser } from '@/lib/auth';
@@ -14,6 +16,9 @@ export default async function LinkStudentPage({
   searchParams: Promise<{ message?: string; kind?: string }>;
 }) {
   const { profile } = await requireUser();
+  if (profile?.role !== 'APODERADO') {
+    redirect('/dashboard?message=Solo+los+apoderados+pueden+vincularse+mediante+c%C3%B3digo');
+  }
   const params = await searchParams;
   const messageKind = params.kind && MESSAGE_STYLES[params.kind] ? params.kind : 'info';
 

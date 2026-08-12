@@ -157,6 +157,18 @@ export async function createStudentExitAuthorizationRequest(
   }
 
   const supabase = await createClient();
+  const { data: activeGuardianPickup } = await supabase
+    .from('guardian_pickup_requests')
+    .select('id')
+    .eq('student_id', currentStudent.studentId)
+    .in('status', ['PENDING_STUDENT_RESPONSE', 'PENDING_GUARD_VALIDATION', 'BOTH_VALIDATED'])
+    .limit(1)
+    .maybeSingle();
+
+  if (activeGuardianPickup?.id) {
+    return { success: true, messageCode: 'AUTH_REQUEST_PENDING', requestId: activeGuardianPickup.id as string };
+  }
+
   const { data: guardianLink } = await supabase
     .from('guardian_students')
     .select('guardian_profile_id, relation_type')

@@ -2,9 +2,31 @@
 node_modules
 .env*
 !.env.example
+!.env.e2e.example
 .vercel
 *.log
 tsconfig.tsbuildinfo
 
-docs/
+# Playwright: reportes y evidencias generadas
+reports/
+test-results/
+playwright-report/
+blob-report/
+
+# Supabase CLI: estado local
+supabase/.temp/
+
+# Informacion local sensible
+docs/user-credentials.txt
+
+# Temporales de Microsoft Word dentro de documentacion
+docs/**/~$*
+docs/**/~WRL*.tmp
+docs/prompts
+docs/CONFIGURACION_LOCAL.md
+
+# Herramientas locales para elaboración de la tesis
+scripts/
+
+# Artefactos generados de la tesis
 VALIDGATE_Capitulo_IV_*

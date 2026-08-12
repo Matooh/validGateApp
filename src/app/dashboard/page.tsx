@@ -6,15 +6,25 @@ import {
   listGuardianPendingAuthorizationRequests,
   respondToAuthorizationRequestFromForm,
 } from '@/app/actions/authorization-requests';
+import {
+  cancelGuardianPickupRequestFromForm,
+  createGuardianPickupRequestFromForm,
+  listGuardianPickupRequests,
+  listMyPickupPins,
+  respondGuardianPickupRequestFromForm,
+} from '@/app/actions/guardian-pickups';
 import { unlinkStudentAction } from '@/app/actions/students';
 import { AppNav } from '@/components/app-nav';
 import { DashboardAutoRefresh } from '@/components/dashboard-auto-refresh';
 import { FeedbackToast } from '@/components/feedback-toast';
 import { PendingSubmitButton } from '@/components/pending-submit-button';
 import { RecentEventCard } from '@/components/recent-event-card';
+import { StatusBadge } from '@/components/status-badge';
 import { requireUser } from '@/lib/auth';
 import { getCurrentStudentForAuthenticatedUser } from '@/lib/students/get-current-student';
 import { createClient } from '@/lib/supabase/server';
+
+export const dynamic = 'force-dynamic';
 
 type InstitutionSummary = {
   name?: string | null;
@@ -63,6 +73,18 @@ function getDashboardCopy(role?: string | null, firstName?: string | null, email
     };
   }
 
+  if (role === 'DOCENTE') {
+    return {
+      eyebrow: 'Docencia',
+      title: `Hola, ${name}.`,
+      description:
+        'Consulta estudiantes, cursos, asistencia y la trazabilidad académica disponible en tu institución.',
+      primaryTitle: 'Actividad académica',
+      primaryDescription: 'Información institucional relevante para la labor docente.',
+      recentDescription: 'Últimos eventos de los estudiantes de tu institución.',
+    };
+  }
+
   if (role === 'APODERADO') {
     return {
       eyebrow: 'Apoderado',
@@ -75,14 +97,36 @@ function getDashboardCopy(role?: string | null, firstName?: string | null, email
     };
   }
 
+  if (role === 'RETIRADOR_AUTORIZADO') {
+    return {
+      eyebrow: 'Retirador autorizado',
+      title: `Hola, ${name}.`,
+      description: 'Consulta tus autorizaciones vigentes e inicia un retiro cuando corresponda.',
+      primaryTitle: 'Estudiantes autorizados',
+      primaryDescription: 'Solo se muestran estudiantes con una autorización vigente.',
+      recentDescription: 'Eventos recientes de los estudiantes que puedes retirar.',
+    };
+  }
+
+  if (role === 'ESTUDIANTE') {
+    return {
+      eyebrow: 'Estudiante',
+      title: `Hola, ${name}.`,
+      description:
+        'Consulta tus métodos de autenticación, revisa tus responsables vinculados y presenta credenciales para portería.',
+      primaryTitle: 'Apoderados',
+      primaryDescription: 'Información sobre apoderados y personas responsables.',
+      recentDescription: 'Últimos eventos registrados para tu perfil.',
+    };
+  }
+
   return {
-    eyebrow: 'Estudiante',
+    eyebrow: 'Perfil',
     title: `Hola, ${name}.`,
-    description:
-      'Consulta tus métodos de autenticación, revisa tus responsables vinculados y presenta credenciales para portería.',
-    primaryTitle: 'Apoderados',
-    primaryDescription: 'Información sobre apoderados y personas responsables.',
-    recentDescription: 'Últimos eventos registrados para tu perfil.',
+    description: 'Consulta la información y las opciones disponibles para tu cuenta.',
+    primaryTitle: 'Resumen de cuenta',
+    primaryDescription: 'Información asociada a tu perfil.',
+    recentDescription: 'Últimos eventos disponibles para tu cuenta.',
   };
 }
 
@@ -92,7 +136,6 @@ function getRoleActionItems(role?: string | null) {
       { href: '/guard', label: 'Módulo portería', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
       { href: '/settings', label: 'Políticas de acceso', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
       { href: '/authentications', label: 'QR dinámico OK', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
-      { href: '/settings', label: 'MFA pendiente', className: 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100' },
     ];
   }
 
@@ -101,15 +144,19 @@ function getRoleActionItems(role?: string | null) {
       { href: '/guard', label: 'Registrar evento', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
       { href: '/guard', label: 'Validar QR', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
       { href: '/authentications', label: 'QR dinámico OK', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
-      { href: '/settings', label: 'MFA pendiente', className: 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100' },
+    ];
+  }
+
+  if (role === 'RETIRADOR_AUTORIZADO') {
+    return [
+      { href: '/links', label: 'Autorizaciones vigentes', className: 'border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100' },
+      { href: '/dashboard', label: 'Retiro con PIN dual', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
     ];
   }
 
   return [
     { href: '/authentications', label: 'QR dinámico OK', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
-    { href: '/authentications', label: 'PIN temporal pendiente', className: 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100' },
-    { href: '/authentications', label: 'MFA pendiente', className: 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100' },
-    { href: '/authentications', label: 'Biometría NOK', className: 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100' },
+    { href: '/authentications', label: 'PIN dual disponible', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
   ];
 }
 
@@ -125,14 +172,6 @@ function getInstitutionName(institutions: unknown) {
 }
 
 function getGuardianRelationDisplay(relationType?: string | null) {
-  if (relationType === 'APODERADO_PRINCIPAL') {
-    return {
-      label: 'Apoderado principal',
-      badge: 'Apoderado principal',
-      className: 'bg-emerald-100 text-emerald-700',
-    };
-  }
-
   if (relationType === 'RETIRADOR_AUTORIZADO') {
     return {
       label: 'Retirador autorizado',
@@ -207,7 +246,7 @@ export default async function DashboardPage({
     )
   );
 
-  const institutionNames = profile?.role === 'APODERADO'
+  const institutionNames = ['APODERADO', 'RETIRADOR_AUTORIZADO'].includes(profile?.role ?? '')
     ? linkedInstitutionNames
     : staffInstitutionName
       ? [staffInstitutionName]
@@ -258,6 +297,19 @@ export default async function DashboardPage({
     profile?.role === 'APODERADO'
       ? await listGuardianPendingAuthorizationRequests()
       : [];
+  const pickupRequests = ['APODERADO', 'RETIRADOR_AUTORIZADO', 'ESTUDIANTE'].includes(profile?.role ?? '')
+    ? await listGuardianPickupRequests()
+    : [];
+  const activePickupRequests = pickupRequests.filter((request) =>
+    ['PENDING_STUDENT_RESPONSE', 'PENDING_GUARD_VALIDATION', 'BOTH_VALIDATED'].includes(request.status),
+  );
+  const pickupPins = await listMyPickupPins(
+    activePickupRequests
+      .filter((request) => request.status !== 'PENDING_STUDENT_RESPONSE')
+      .map((request) => request.requestId),
+  );
+  const pickupPinByRequestId = new Map(pickupPins.map((pin) => [pin.requestId, pin]));
+  const activePickupByStudentId = new Map(activePickupRequests.map((request) => [request.studentId, request]));
 
   let accessEventsQuery = supabase
     .from('access_events')
@@ -265,7 +317,7 @@ export default async function DashboardPage({
     .order('occurred_at', { ascending: false })
     .limit(8);
 
-  if (profile?.role === 'APODERADO') {
+  if (['APODERADO', 'RETIRADOR_AUTORIZADO'].includes(profile?.role ?? '')) {
     accessEventsQuery = linkedStudentIds.length > 0
       ? accessEventsQuery.in('student_id', linkedStudentIds)
       : accessEventsQuery.eq('student_id', -1);
@@ -325,6 +377,25 @@ export default async function DashboardPage({
   const combinedEvents = [
     ...((accessEvents ?? []) as any[]),
     ...recentAuthRequests,
+    ...pickupRequests.slice(0, 8).map((request) => ({
+      id: `pickup-${request.requestId}`,
+      event_type: 'Solicitud de retiro con PIN dual',
+      exit_kind: 'RETIRO_AUTORIZADO',
+      validation_kind: 'PIN DUAL',
+      result: request.status,
+      occurred_at: request.updatedAt,
+      notes: request.status === 'PENDING_STUDENT_RESPONSE'
+        ? 'Esperando respuesta del estudiante.'
+        : request.status === 'PENDING_GUARD_VALIDATION'
+          ? 'Pendiente de validación presencial en portería.'
+          : request.status === 'BOTH_VALIDATED'
+            ? 'Ambas personas validadas; falta confirmar la salida efectiva.'
+            : `Estado final: ${request.status}`,
+      students: { id: request.studentId, first_name: request.studentName, last_name: '' },
+      isAuthRequest: true,
+      isPendingAuthorizationRequest: ['PENDING_STUDENT_RESPONSE', 'PENDING_GUARD_VALIDATION', 'BOTH_VALIDATED'].includes(request.status),
+      requestLabel: 'Retiro con PIN dual',
+    })),
   ]
     .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())
     .slice(0, 8);
@@ -332,12 +403,13 @@ export default async function DashboardPage({
   const displayName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || profile?.email || null;
   const recentEventStorageScope = `dashboard:${profile?.role ?? 'SIN_ROL'}:${user.id}`;
   const institutionLabel = institutionNames.length > 1 ? 'Instituciones' : 'Institución';
-  const institutionEmptyText = profile?.role === 'APODERADO' ? 'Sin instituciones vinculadas' : 'No asignada';
+  const institutionEmptyText = ['APODERADO', 'RETIRADOR_AUTORIZADO'].includes(profile?.role ?? '') ? 'Sin instituciones vinculadas' : 'No asignada';
   const dashboardCopy = getDashboardCopy(profile?.role, profile?.first_name, profile?.email);
   const roleActionItems = getRoleActionItems(profile?.role);
   const autoRefreshExpiresAt = [
     pendingStudentAuthorizationRequest?.expires_at,
     ...pendingAuthorizationRequests.map((request) => request.expiresAt),
+    ...activePickupRequests.map((request) => request.expiresAt),
   ];
 
   return (
@@ -349,7 +421,7 @@ export default async function DashboardPage({
       <section className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
         <div className="grid gap-4 rounded-2xl bg-slate-900 p-4 text-white shadow-lg sm:p-6 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] md:rounded-3xl">
           <div className="min-w-0">
-            <p className="text-xs uppercase tracking-[0.2em] text-sky-200 sm:text-sm sm:tracking-[0.25em]">{dashboardCopy.eyebrow}</p>
+            <p data-testid="dashboard-role-eyebrow" className="text-xs uppercase tracking-[0.2em] text-sky-200 sm:text-sm sm:tracking-[0.25em]">{dashboardCopy.eyebrow}</p>
             <h1 className="mt-2 break-words text-2xl font-bold sm:text-3xl">{dashboardCopy.title}</h1>
             <p className="mt-2 max-w-2xl text-slate-300">
               {dashboardCopy.description}
@@ -413,6 +485,188 @@ export default async function DashboardPage({
           </div>
         </section>
 
+        {profile?.role === 'ESTUDIANTE' && activePickupRequests.length > 0 ? (
+          <section className="min-w-0 space-y-4 rounded-2xl border border-amber-200 bg-white p-4 shadow-sm sm:p-6 md:rounded-3xl">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">Solicitudes de retiro pendientes</h2>
+              <p className="mt-1 text-sm text-slate-500">Confirma la recepción y dirígete a portería. Tu respuesta no registra la salida.</p>
+            </div>
+            {activePickupRequests.map((request) => {
+              const pin = pickupPinByRequestId.get(request.requestId);
+              return (
+                <article key={request.requestId} className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4">
+                  <p className="font-semibold text-slate-900">{request.guardianName}</p>
+                  <p className="mt-2 rounded-xl bg-white px-3 py-2 text-sm text-slate-700">{request.notificationMessage}</p>
+                  {request.status === 'PENDING_STUDENT_RESPONSE' ? (
+                    <form action={respondGuardianPickupRequestFromForm} className="mt-4 flex flex-col gap-2 sm:flex-row">
+                      <input type="hidden" name="request_id" value={request.requestId} />
+                      <PendingSubmitButton name="decision" value="ACCEPT" pendingLabel="Aceptando..." className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800">
+                        Aceptar
+                      </PendingSubmitButton>
+                      <PendingSubmitButton name="decision" value="REJECT" pendingLabel="Rechazando..." className="rounded-xl border border-rose-300 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50">
+                        Rechazar
+                      </PendingSubmitButton>
+                    </form>
+                  ) : pin ? (
+                    <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-center">
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">Tu PIN de estudiante</p>
+                      <p className="mt-2 font-mono text-3xl font-bold tracking-[0.35em] text-slate-900">{pin.pin}</p>
+                      <p className="mt-2 text-xs text-slate-500">Válido hasta {new Date(pin.expiresAt).toLocaleTimeString('es-CL')}. Muéstralo solo a portería.</p>
+                    </div>
+                  ) : (
+                    <p className="mt-4 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">Tu identidad ya fue validada. Espera la confirmación de portería.</p>
+                  )}
+                </article>
+              );
+            })}
+          </section>
+        ) : null}
+
+        {['APODERADO', 'RETIRADOR_AUTORIZADO'].includes(profile?.role ?? '') && activePickupRequests.length > 0 ? (
+          <section className="min-w-0 space-y-4 rounded-2xl border border-sky-200 bg-white p-4 shadow-sm sm:p-6 md:rounded-3xl">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">Retiros en curso</h2>
+              <p className="mt-1 text-sm text-slate-500">Presenta tu PIN en portería cuando el estudiante haya aceptado.</p>
+            </div>
+            {activePickupRequests.map((request) => {
+              const pin = pickupPinByRequestId.get(request.requestId);
+              return (
+                <article key={request.requestId} className="rounded-2xl border border-slate-200 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-slate-900">{request.studentName}</p>
+                      <p className="mt-1 text-sm text-slate-500">{request.status === 'PENDING_STUDENT_RESPONSE' ? 'Esperando respuesta del estudiante' : request.status === 'BOTH_VALIDATED' ? 'Ambos validados; portería debe confirmar la salida' : 'Pendiente de validación en portería'}</p>
+                    </div>
+                    <form action={cancelGuardianPickupRequestFromForm}>
+                      <input type="hidden" name="request_id" value={request.requestId} />
+                      <PendingSubmitButton pendingLabel="Cancelando..." className="rounded-xl border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50">Cancelar</PendingSubmitButton>
+                    </form>
+                  </div>
+                  {pin ? (
+                    <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-center">
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">Tu PIN de apoderado</p>
+                      <p className="mt-2 font-mono text-3xl font-bold tracking-[0.35em] text-slate-900">{pin.pin}</p>
+                      <p className="mt-2 text-xs text-slate-500">Válido hasta {new Date(pin.expiresAt).toLocaleTimeString('es-CL')}. No lo compartas con el estudiante.</p>
+                    </div>
+                  ) : request.status !== 'PENDING_STUDENT_RESPONSE' ? (
+                    <p className="mt-4 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">Tu identidad ya fue validada.</p>
+                  ) : null}
+                </article>
+              );
+            })}
+          </section>
+        ) : null}
+
+        {profile?.role === 'ESTUDIANTE' && currentStudent ? (
+          <section className="min-w-0 space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 md:rounded-3xl">
+            <div className="min-w-0">
+              <h2 className="text-xl font-semibold text-slate-900">Status</h2>
+              <p className="text-sm text-slate-500">
+                Estado actual y acciones de salida disponibles para el estudiante.
+              </p>
+            </div>
+
+            {currentStudent.canLeaveAlone ? (
+              <form
+                action={confirmStudentSelfExitFromForm}
+                className="rounded-2xl border border-slate-200 p-4 sm:p-5"
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-lg font-semibold text-slate-900">
+                      Salida por voluntad del estudiante
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Registra tu salida directa con una credencial QR vigente.
+                    </p>
+                    <p className="mt-2 text-sm text-slate-500">
+                      Estado actual:{' '}
+                      <span className="font-medium text-slate-800">
+                        {currentStudent.isInInstitution ? 'Dentro de la institución' : 'Fuera de la institución'}
+                      </span>
+                    </p>
+                    <p
+                      className={`mt-2 text-sm font-medium ${
+                        studentHasActiveQr ? 'text-emerald-700' : 'text-amber-700'
+                      }`}
+                    >
+                      Estado QR:{' '}
+                      {studentActiveQrCredential
+                        ? `Vigente hasta ${new Date(studentActiveQrCredential.expires_at).toLocaleTimeString('es-CL', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}`
+                        : 'No hay una credencial QR vigente generada.'}
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row lg:shrink-0">
+                    <Link
+                      href="/authentications"
+                      className="rounded-xl border border-slate-300 px-4 py-3 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      {studentHasActiveQr ? 'Ver QR' : 'Generar QR'}
+                    </Link>
+                    <PendingSubmitButton
+                      disabled={!currentStudent.isInInstitution || !studentHasActiveQr}
+                      pendingLabel="Registrando..."
+                      className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                    >
+                      Registrar salida
+                    </PendingSubmitButton>
+                  </div>
+                </div>
+              </form>
+            ) : (
+              <form
+                action={createStudentExitAuthorizationRequestFromForm}
+                className="rounded-2xl border border-slate-200 p-4 sm:p-5"
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-lg font-semibold text-slate-900">
+                      Solicitud de autorización de salida
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Pide aprobación a tu apoderado. Al aprobarse, el retiro quedará registrado automáticamente.
+                    </p>
+                    <p className="mt-2 text-sm text-slate-500">
+                      Estado actual:{' '}
+                      <span className="font-medium text-slate-800">
+                        {currentStudent.isInInstitution ? 'Dentro de la institución' : 'Fuera de la institución'}
+                      </span>
+                    </p>
+                  </div>
+                  <PendingSubmitButton
+                    disabled={!currentStudent.isInInstitution || studentHasPendingAuthorizationRequest}
+                    pendingLabel="Enviando..."
+                    className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                  >
+                    {studentHasPendingAuthorizationRequest
+                      ? 'Solicitud en curso'
+                      : 'Solicitar autorización de salida'}
+                  </PendingSubmitButton>
+                </div>
+                {studentHasPendingAuthorizationRequest ? (
+                  <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    Ya existe una solicitud de retiro vigente. Espera la respuesta de tu apoderado antes de crear una nueva.
+                  </p>
+                ) : null}
+                <label htmlFor="exit_reason" className="mt-4 block text-sm font-medium text-slate-700">
+                  Motivo opcional
+                </label>
+                <textarea
+                  id="exit_reason"
+                  name="reason"
+                  rows={2}
+                  disabled={studentHasPendingAuthorizationRequest}
+                  placeholder="Ej: salida por trámite familiar"
+                  className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm"
+                />
+              </form>
+            )}
+          </section>
+        ) : null}
+
         <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
           <section className="min-w-0 space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 md:rounded-3xl">
             <div className="min-w-0">
@@ -442,105 +696,6 @@ export default async function DashboardPage({
                 </div>
               ) : profile?.role === 'ESTUDIANTE' ? (
                 <div className="space-y-4">
-                  {currentStudent?.canLeaveAlone ? (
-                    <form
-                      action={confirmStudentSelfExitFromForm}
-                      className="rounded-2xl border border-slate-200 p-4 sm:p-5"
-                    >
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="min-w-0 flex-1">
-                          <h3 className="text-lg font-semibold text-slate-900">
-                            Salida por voluntad del estudiante
-                          </h3>
-                          <p className="mt-1 text-sm text-slate-500">
-                            Registra tu salida directa con una credencial QR vigente.
-                          </p>
-                          <p className="mt-2 text-sm text-slate-500">
-                            Estado actual:{' '}
-                            <span className="font-medium text-slate-800">
-                              {currentStudent.isInInstitution ? 'Dentro de la institución' : 'Fuera de la institución'}
-                            </span>
-                          </p>
-                          <p
-                            className={`mt-2 text-sm font-medium ${
-                              studentHasActiveQr ? 'text-emerald-700' : 'text-amber-700'
-                            }`}
-                          >
-                            Estado QR:{' '}
-                            {studentActiveQrCredential
-                              ? `Vigente hasta ${new Date(studentActiveQrCredential.expires_at).toLocaleTimeString('es-CL', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}`
-                              : 'No hay una credencial QR vigente generada.'}
-                          </p>
-                        </div>
-                        <div className="flex flex-col gap-2 sm:flex-row lg:shrink-0">
-                          <Link
-                            href="/authentications"
-                            className="rounded-xl border border-slate-300 px-4 py-3 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                          >
-                            {studentHasActiveQr ? 'Ver QR' : 'Generar QR'}
-                          </Link>
-                          <PendingSubmitButton
-                            disabled={!currentStudent.isInInstitution || !studentHasActiveQr}
-                            pendingLabel="Registrando..."
-                            className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-                          >
-                            Registrar salida
-                          </PendingSubmitButton>
-                        </div>
-                      </div>
-                    </form>
-                  ) : currentStudent ? (
-                    <form
-                      action={createStudentExitAuthorizationRequestFromForm}
-                      className="rounded-2xl border border-slate-200 p-4 sm:p-5"
-                    >
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="min-w-0 flex-1">
-                          <h3 className="text-lg font-semibold text-slate-900">
-                            Solicitud de autorización de salida
-                          </h3>
-                          <p className="mt-1 text-sm text-slate-500">
-                            Pide aprobación a tu apoderado. Portería registrará la salida solo cuando confirmes el evento.
-                          </p>
-                          <p className="mt-2 text-sm text-slate-500">
-                            Estado actual:{' '}
-                            <span className="font-medium text-slate-800">
-                              {currentStudent.isInInstitution ? 'Dentro de la institución' : 'Fuera de la institución'}
-                            </span>
-                          </p>
-                        </div>
-                        <PendingSubmitButton
-                          disabled={!currentStudent.isInInstitution || studentHasPendingAuthorizationRequest}
-                          pendingLabel="Enviando..."
-                          className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-                        >
-                          {studentHasPendingAuthorizationRequest
-                            ? 'Solicitud en curso'
-                            : 'Solicitar autorización de salida'}
-                        </PendingSubmitButton>
-                      </div>
-                      {studentHasPendingAuthorizationRequest ? (
-                        <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                          Ya existe una solicitud de retiro vigente. Espera la respuesta de tu apoderado antes de crear una nueva.
-                        </p>
-                      ) : null}
-                      <label htmlFor="exit_reason" className="mt-4 block text-sm font-medium text-slate-700">
-                        Motivo opcional
-                      </label>
-                      <textarea
-                        id="exit_reason"
-                        name="reason"
-                        rows={2}
-                        disabled={studentHasPendingAuthorizationRequest}
-                        placeholder="Ej: salida por trámite familiar"
-                        className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm"
-                      />
-                    </form>
-                  ) : null}
-
                   {guardianLinks.length > 0 ? (
                     guardianLinks.map((link) => (
                       (() => {
@@ -585,6 +740,7 @@ export default async function DashboardPage({
                   const student = Array.isArray(item.students) ? item.students[0] : item.students;
                   if (!student) return null;
                   const institutionName = getInstitutionName(student.institutions);
+                  const activePickup = activePickupByStudentId.get(student.id);
 
                   return (
                     <article key={item.id} className="min-w-0 rounded-2xl border border-slate-200 p-4 sm:p-5">
@@ -597,7 +753,7 @@ export default async function DashboardPage({
                           <p className="mt-1 break-words text-sm text-slate-500">
                             Institución: {institutionName ?? 'Sin institución'}
                           </p>
-                          <p className="mt-1 break-words text-sm text-slate-500">Código de vinculación: {student.link_code}</p>
+                          {profile?.role === 'APODERADO' ? <p className="mt-1 break-words text-sm text-slate-500">Código de vinculación: {student.link_code}</p> : null}
                         </div>
                         <span
                           className={`w-fit max-w-full break-words rounded-full px-3 py-1 text-sm font-medium sm:shrink-0 ${
@@ -609,25 +765,32 @@ export default async function DashboardPage({
                       </div>
 
                       <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                        <Link href={`/students/${student.id}`} className="rounded-xl border border-slate-300 px-4 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-50">
-                          Ver detalle
-                        </Link>
-                        <form action={unlinkStudentAction} className="sm:w-auto">
-                          <input type="hidden" name="relation_id" value={item.id} />
-                          <PendingSubmitButton
-                            pendingLabel="Desvinculando..."
-                            className="w-full rounded-xl border border-rose-300 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:bg-rose-50 disabled:text-rose-300 sm:w-auto"
-                          >
-                            Desvincular
-                          </PendingSubmitButton>
-                        </form>
+                        {profile?.role === 'APODERADO' ? <Link href={`/students/${student.id}`} className="rounded-xl border border-slate-300 px-4 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-50">Ver detalle</Link> : null}
+                        {student.is_in_institution ? (
+                          <form action={createGuardianPickupRequestFromForm} className="sm:w-auto">
+                            <input type="hidden" name="student_id" value={student.id} />
+                            <PendingSubmitButton
+                              disabled={Boolean(activePickup)}
+                              pendingLabel="Notificando..."
+                              className="w-full rounded-xl bg-sky-700 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-800 disabled:cursor-not-allowed disabled:bg-sky-300 sm:w-auto"
+                            >
+                              {activePickup ? 'Retiro en curso' : 'Notificar retiro'}
+                            </PendingSubmitButton>
+                          </form>
+                        ) : null}
+                        {profile?.role === 'APODERADO' ? (
+                          <form action={unlinkStudentAction} className="sm:w-auto">
+                            <input type="hidden" name="relation_id" value={item.id} />
+                            <PendingSubmitButton pendingLabel="Desvinculando..." className="w-full rounded-xl border border-rose-300 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:bg-rose-50 disabled:text-rose-300 sm:w-auto">Desvincular</PendingSubmitButton>
+                          </form>
+                        ) : null}
                       </div>
                     </article>
                   );
                 })
               ) : (
                 <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-slate-500">
-                  {profile?.role === 'APODERADO'
+                  {['APODERADO', 'RETIRADOR_AUTORIZADO'].includes(profile?.role ?? '')
                     ? 'No tienes estudiantes vinculados para mostrar.'
                     : 'No hay apoderados o responsables vinculados para mostrar.'}
                 </div>
@@ -727,14 +890,16 @@ export default async function DashboardPage({
                       showNewBadge={shouldShowNewBadge}
                     >
                       <p className="break-words font-medium text-slate-900">
-                        {student ? `${student.first_name} ${student.last_name}` : 'Estudiante'} · {event.event_type}
+                        {student ? `${student.first_name} ${student.last_name}` : 'Estudiante'}
                       </p>
                       {event.isAuthRequest ? (
                         <p className="mt-1 break-words text-sm text-slate-500">{event.requestLabel}</p>
                       ) : null}
-                      <p className={`mt-1 break-words text-sm text-slate-500 ${event.isAuthRequest ? 'hidden' : ''}`}>
-                        {event.validation_kind} · {event.result} · {event.event_type === 'SALIDA' ? event.exit_kind ?? 'Sin clasificar' : 'Ingreso'}
-                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <StatusBadge value={event.isAuthRequest || event.exit_kind === 'RETIRO_AUTORIZADO' ? 'RETIRO' : event.event_type} />
+                        <StatusBadge value={event.result} />
+                        {!event.isAuthRequest && event.validation_kind === 'MANUAL' ? <StatusBadge value="MANUAL" /> : null}
+                      </div>
                       {event.notes ? (
                         <div className="mt-3 break-words rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">
                           <span className="font-medium text-slate-900">Descripción:</span> {event.notes}

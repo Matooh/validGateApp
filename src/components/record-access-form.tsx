@@ -1014,6 +1014,17 @@ export function RecordAccessForm({
         </p>
       </div>
 
+      {warnings.length > 0 ? (
+        <div role="alert" className="md:col-span-2 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">
+          <p className="text-sm font-semibold">Revisa la información antes de continuar</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+            {warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <div className="md:col-span-2">
         <SubmitButton disabled={!hasStudents || !requiredFieldsAreComplete} />
       </div>

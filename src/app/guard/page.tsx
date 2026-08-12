@@ -1,11 +1,15 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
+import { listGuardianPickupRequests } from '@/app/actions/guardian-pickups';
 import { AppNav } from '@/components/app-nav';
+import { DashboardAutoRefresh } from '@/components/dashboard-auto-refresh';
 import { FeedbackToast } from '@/components/feedback-toast';
+import { GuardianPickupQueue } from '@/components/guardian-pickup-queue';
 import { QrCredentialValidator } from '@/components/qr-credential-validator';
 import { RecordAccessForm } from '@/components/record-access-form';
 import { RecentEventCard } from '@/components/recent-event-card';
+import { StatusBadge } from '@/components/status-badge';
 import { requireStaff } from '@/lib/auth';
 import { hasPermission } from '@/lib/permissions';
 import { createClient } from '@/lib/supabase/server';
@@ -30,7 +34,7 @@ export default async function GuardPage({
     : 'info';
 
   if (!hasPermission(profile?.role ?? null, 'view_guard_module')) {
-    redirect('/dashboard');
+    redirect('/dashboard?message=No+tienes+permiso+para+esta+secci%C3%B3n');
   }
 
   const institutionId = profile?.institution_id;
@@ -78,11 +82,16 @@ export default async function GuardPage({
     .order('occurred_at', { ascending: false })
     .limit(10);
 
+  const pickupRequests = ['ADMIN', 'PORTERIA'].includes(profile?.role ?? '')
+    ? await listGuardianPickupRequests()
+    : [];
+
   const institutionName = institution?.name ?? 'Institución no disponible';
   const recentEventStorageScope = `guard:${profile?.role ?? 'SIN_ROL'}:${user.id}:access`;
 
   return (
     <main className="min-h-screen bg-slate-50">
+      <DashboardAutoRefresh expiresAt={pickupRequests.map((request) => request.expiresAt)} />
       <FeedbackToast message={toastMessage} tone={toastTone} title="Portería" />
       <AppNav
         role={profile?.role}
@@ -124,6 +133,8 @@ export default async function GuardPage({
             </p>
           </div>
         </section>
+
+        <GuardianPickupQueue requests={pickupRequests} />
 
         <QrCredentialValidator />
 
@@ -176,15 +187,12 @@ export default async function GuardPage({
                             {student
                               ? `${student.first_name} ${student.last_name}`
                               : 'Estudiante'}{' '}
-                            · {event.event_type}
                           </p>
-
-                          <p className="mt-1 text-sm text-slate-500">
-                            {event.validation_kind} · {event.result} ·{' '}
-                            {event.event_type === 'SALIDA'
-                              ? event.exit_kind ?? 'Sin clasificar'
-                              : 'Ingreso'}
-                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <StatusBadge value={event.exit_kind === 'RETIRO_AUTORIZADO' ? 'RETIRO' : event.event_type} />
+                            <StatusBadge value={event.result} />
+                            {event.validation_kind === 'MANUAL' ? <StatusBadge value="MANUAL" /> : null}
+                          </div>
 
                           {event.authenticator_required ? (
                             <p className="mt-1 text-xs font-medium text-slate-500">

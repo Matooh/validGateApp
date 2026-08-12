@@ -12,8 +12,14 @@ export function AppNav({ role, displayName }: AppNavProps) {
   const roleLabel = role ?? 'SIN ROL';
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: 'home' as const },
+    ...(hasPermission(role ?? null, 'view_links')
+      ? [{ href: '/links', label: 'Vínculos', icon: 'student' as const }]
+      : []),
     ...(hasPermission(role ?? null, 'link_student')
       ? [{ href: '/students/link', label: 'Vincular estudiante', icon: 'student' as const }]
+      : []),
+    ...(hasPermission(role ?? null, 'manage_users')
+      ? [{ href: '/admin/relationships', label: 'Vinculación Apoderado-Estudiante', icon: 'student' as const }]
       : []),
     ...(hasPermission(role ?? null, 'view_guard_module')
       ? [{ href: '/guard', label: 'Portería', icon: 'guard' as const }]

@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 import { updateAttendanceStatusAction, updateStudentAction } from '@/app/actions/students';
 import { AppNav } from '@/components/app-nav';
@@ -53,7 +53,7 @@ export default async function StudentDetailPage({
       .maybeSingle();
 
     if (!link) {
-      notFound();
+      redirect('/dashboard?message=No+tienes+permiso+para+consultar+este+estudiante');
     }
   }
 

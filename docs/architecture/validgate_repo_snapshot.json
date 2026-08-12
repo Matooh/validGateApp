@@ -1,0 +1,225 @@
+{
+  "project": {
+    "name": "VALIDGATE",
+    "stack": [
+      {"name": "Next.js", "version": "16.2.6", "evidence": "package-lock.json"},
+      {"name": "React", "version": "19.2.5", "evidence": "package-lock.json"},
+      {"name": "TypeScript", "version": "6.0.2", "evidence": "package-lock.json"},
+      {"name": "Tailwind CSS", "version": "4.2.2", "evidence": "package-lock.json"},
+      {"name": "@supabase/ssr", "version": "0.10.0", "evidence": "package-lock.json"},
+      {"name": "@supabase/supabase-js", "version": "2.102.1", "evidence": "package-lock.json"},
+      {"name": "PostgreSQL", "version": null, "evidence": "supabase/migrations"}
+    ],
+    "architecture": "Monolito modular serverless cliente-servidor con Next.js App Router, Server Components, componentes cliente, Server Actions, acceso directo a Supabase y reglas críticas en PostgreSQL/RLS/RPC.",
+    "status": "MVP funcional parcial",
+    "inspection_date": "2026-07-19",
+    "inspected_route_count": 69,
+    "detected_module_count": 8
+  },
+  "evidence": [
+    {"path": "src/app", "status": "Encontrado", "observation": "Páginas, Server Actions y un Route Handler"},
+    {"path": "src/components", "status": "Encontrado", "observation": "UI cliente/presentación"},
+    {"path": "src/lib", "status": "Encontrado", "observation": "Auth, permisos, tipos y adaptadores Supabase"},
+    {"path": "supabase/migrations", "status": "Encontrado", "observation": "15 migraciones declarativas"},
+    {"path": "tests|e2e|playwright.config", "status": "No encontrado", "observation": "Sin suite automatizada"},
+    {"path": ".env.example", "status": "Encontrado", "observation": "Solo nombres de dos variables públicas inspeccionados"},
+    {"path": "deployment", "status": "Parcial", "observation": "Vercel documentado; despliegue real no verificado"}
+  ],
+  "actors": [
+    {"name": "Administrador", "kind": "authenticated_role", "status": "partial"},
+    {"name": "Personal de portería", "kind": "authenticated_role", "status": "implemented"},
+    {"name": "Docente", "kind": "authenticated_role", "status": "partial"},
+    {"name": "Apoderado", "kind": "authenticated_role", "status": "implemented"},
+    {"name": "Estudiante", "kind": "authenticated_role", "status": "implemented"},
+    {"name": "Persona autorizada", "kind": "human_domain_entity", "status": "not_an_application_user"},
+    {"name": "Supabase", "kind": "external_service", "status": "implemented"}
+  ],
+  "roles": [
+    {"name": "ADMIN", "evidence": ["src/lib/types.ts", "src/lib/permissions.ts", "supabase/migrations/001_init.sql"]},
+    {"name": "PORTERIA", "evidence": ["src/lib/types.ts", "src/app/guard/page.tsx"]},
+    {"name": "DOCENTE", "evidence": ["src/lib/types.ts", "src/lib/auth.ts"]},
+    {"name": "APODERADO", "evidence": ["src/app/dashboard/page.tsx", "supabase/migrations/001_init.sql"]},
+    {"name": "ESTUDIANTE", "evidence": ["src/lib/students/get-current-student.ts", "supabase/migrations/008_student_profiles.sql"]}
+  ],
+  "functional_requirements": [
+    {"id": "RF-OBS-01", "name": "Autenticación", "status": "Implementada", "evidence": ["src/app/actions/auth.ts"]},
+    {"id": "RF-OBS-02", "name": "Control de acceso por rol", "status": "Implementada", "evidence": ["src/lib/permissions.ts", "supabase/migrations/001_init.sql"]},
+    {"id": "RF-OBS-03", "name": "Gestión de estudiantes", "status": "Parcialmente implementada", "evidence": ["src/app/students/[id]/page.tsx"]},
+    {"id": "RF-OBS-04", "name": "Gestión de cursos", "status": "Parcialmente implementada", "evidence": ["src/app/guard/page.tsx"]},
+    {"id": "RF-OBS-05", "name": "Vinculación estudiante-apoderado", "status": "Parcialmente implementada", "evidence": ["src/app/actions/students.ts"]},
+    {"id": "RF-OBS-06", "name": "Personas autorizadas", "status": "Solo documentada/modelada", "evidence": ["supabase/migrations/001_init.sql"]},
+    {"id": "RF-OBS-07", "name": "Ingreso/salida manual", "status": "Implementada", "evidence": ["src/app/actions/access.ts"]},
+    {"id": "RF-OBS-08", "name": "Retiro", "status": "Parcialmente implementada", "evidence": ["src/components/qr-credential-validator.tsx", "supabase/migrations/012_authorization_requests.sql"]},
+    {"id": "RF-OBS-09", "name": "Retiro anticipado", "status": "Solo documentada", "evidence": ["README.md"]},
+    {"id": "RF-OBS-10", "name": "Salida autónoma", "status": "Implementada", "evidence": ["supabase/migrations/015_student_self_exit.sql"]},
+    {"id": "RF-OBS-11", "name": "QR temporal opaco y de uso único", "status": "Implementada", "evidence": ["src/app/actions/qr-credentials.ts", "supabase/migrations/006_student_qr_credentials.sql"]},
+    {"id": "RF-OBS-12", "name": "PIN temporal", "status": "Futura", "evidence": ["src/app/authentications/page.tsx"]},
+    {"id": "RF-OBS-13", "name": "Contingencia manual", "status": "Parcialmente implementada", "evidence": ["src/app/actions/access.ts", "supabase/migrations/013_access_event_contingency.sql"]},
+    {"id": "RF-OBS-14", "name": "Historial", "status": "Parcialmente implementada", "evidence": ["src/app/dashboard/page.tsx"]},
+    {"id": "RF-OBS-15", "name": "Notificaciones", "status": "Parcialmente implementada", "evidence": ["src/components/feedback-toast.tsx"]},
+    {"id": "RF-OBS-16", "name": "Anulaciones", "status": "No encontrada", "evidence": []},
+    {"id": "RF-OBS-17", "name": "Observaciones", "status": "Parcialmente implementada", "evidence": ["src/app/actions/access.ts"]},
+    {"id": "RF-OBS-18", "name": "Intentos fallidos", "status": "Parcialmente implementada", "evidence": ["src/app/actions/access.ts"]}
+  ],
+  "use_cases": [
+    {"actor": "ADMIN", "name": "Configurar política de acceso", "status": "implemented", "relation": "association"},
+    {"actor": "ADMIN", "name": "Operar portería", "status": "implemented", "relation": "association"},
+    {"actor": "ADMIN", "name": "Actualizar estudiante", "status": "partial", "relation": "association"},
+    {"actor": "PORTERIA", "name": "Registrar ingreso manual", "status": "implemented", "relation": "association"},
+    {"actor": "PORTERIA", "name": "Registrar salida manual", "status": "implemented", "relation": "association"},
+    {"actor": "PORTERIA", "name": "Validar QR", "status": "implemented", "relation": "include"},
+    {"actor": "PORTERIA", "name": "Confirmar retiro QR", "status": "partial", "relation": "association"},
+    {"actor": "PORTERIA", "name": "Registrar contingencia", "status": "partial", "relation": "extend"},
+    {"actor": "PORTERIA", "name": "Consultar eventos recientes", "status": "implemented", "relation": "association"},
+    {"actor": "APODERADO", "name": "Vincular estudiante", "status": "partial", "relation": "association"},
+    {"actor": "APODERADO", "name": "Desvincular estudiante", "status": "implemented", "relation": "association"},
+    {"actor": "APODERADO", "name": "Consultar historial", "status": "implemented", "relation": "association"},
+    {"actor": "APODERADO", "name": "Generar QR vinculado", "status": "implemented", "relation": "association"},
+    {"actor": "APODERADO", "name": "Aprobar o rechazar salida", "status": "implemented", "relation": "association"},
+    {"actor": "ESTUDIANTE", "name": "Consultar estado y horario", "status": "implemented", "relation": "association"},
+    {"actor": "ESTUDIANTE", "name": "Generar QR propio", "status": "implemented", "relation": "association"},
+    {"actor": "ESTUDIANTE", "name": "Solicitar autorización", "status": "implemented", "relation": "association"},
+    {"actor": "ESTUDIANTE", "name": "Registrar salida autónoma", "status": "implemented", "relation": "association"}
+  ],
+  "domain_classes": [
+    {"name": "Institution", "kind": "domain", "relations": ["1 to 0..* Student", "1 to 0..* Course", "1 to 0..* UserProfile"], "evidence": "institutions"},
+    {"name": "UserProfile", "kind": "domain", "relations": ["0..1 Institution"], "evidence": "profiles"},
+    {"name": "Student", "kind": "domain", "relations": ["1 Institution", "0..1 Course", "0..* AccessEvent"], "evidence": "students"},
+    {"name": "Course", "kind": "domain", "relations": ["1 Institution", "0..* Student"], "evidence": "courses"},
+    {"name": "Guardian", "kind": "conceptual_role_of_UserProfile", "relations": ["0..* Student through GuardianStudent"], "evidence": "profiles, guardian_students"},
+    {"name": "GuardianStudent", "kind": "bridge", "relations": ["1 Guardian", "1 Student"], "evidence": "guardian_students"},
+    {"name": "AuthorizedPerson", "kind": "domain", "relations": ["1 Institution", "0..* Authorization"], "evidence": "authorized_people"},
+    {"name": "Authorization", "kind": "domain", "relations": ["1 Student", "1 AuthorizedPerson", "1 Guardian"], "evidence": "authorizations"},
+    {"name": "ExitPermission", "kind": "domain_concept", "relations": ["1 Student", "1 Guardian", "0..1 authorization per request"], "evidence": "authorization_requests, student_exit_authorizations"},
+    {"name": "Schedule", "kind": "domain", "relations": ["1 Course", "0..* AttendanceBlock"], "evidence": "schedule_blocks"},
+    {"name": "AccessEvent", "kind": "domain", "relations": ["1 Student", "0..1 actor", "0..1 recorder", "0..1 authorized person"], "evidence": "access_events"},
+    {"name": "Validation", "kind": "embedded_concept", "relations": ["1 per AccessEvent"], "evidence": "access_events, student_qr_credentials"},
+    {"name": "Notification", "kind": "non_persistent_ui_concept", "relations": [], "evidence": "feedback-toast.tsx"}
+  ],
+  "database": {
+    "tables": [
+      "institutions", "profiles", "courses", "students", "guardian_students",
+      "authorized_people", "authorizations", "schedule_blocks", "attendance_blocks",
+      "access_events", "institution_access_policies", "student_qr_credentials",
+      "student_profiles", "authorization_requests", "student_exit_authorizations"
+    ],
+    "enums": [
+      "app_role", "authorization_type", "access_event_type", "exit_type",
+      "validation_method", "access_result", "block_type", "attendance_status",
+      "access_policy_failure", "access_contingency_reason"
+    ],
+    "rpcs": [
+      {"name": "get_student_guardian_links", "status": "defined"},
+      {"name": "confirm_student_qr_access_event", "status": "defined"},
+      {"name": "confirm_student_self_exit", "status": "defined"},
+      {"name": "link_student_by_code", "status": "called_but_not_defined_in_repository"}
+    ],
+    "triggers": [
+      "on_auth_user_created", "profiles_updated_at", "students_updated_at",
+      "access_events_after_insert", "institution_access_policies_updated_at"
+    ],
+    "rls_policies": [
+      {"declaration_count": 41, "note": "Cuenta histórica; varias políticas son reemplazadas por migraciones posteriores"},
+      {"coverage": "RLS enabled on all 15 declared tables"}
+    ],
+    "views": [],
+    "deployed_schema_status": "No verificado en el repositorio"
+  },
+  "components": [
+    {"name": "NextWebApp", "type": "application", "requires": ["SupabaseAdapters"]},
+    {"name": "AuthenticationModule", "type": "application", "requires": ["SupabaseAuth"]},
+    {"name": "SessionMiddleware", "type": "middleware", "requires": ["SupabaseAuth"]},
+    {"name": "RoleDashboard", "type": "application", "requires": ["SupabaseDataAPI"]},
+    {"name": "GateModule", "type": "application", "requires": ["ServerActions", "PostgreSQLRPC"]},
+    {"name": "AuthorizationModule", "type": "application", "requires": ["RLS", "PostgreSQL"]},
+    {"name": "QrCredentialModule", "type": "application", "requires": ["PostgreSQLRPC"]},
+    {"name": "StudentAttendanceModule", "type": "application", "requires": ["SupabaseDataAPI"]},
+    {"name": "SupabaseAdapters", "type": "adapter", "requires": ["Supabase"]},
+    {"name": "PostgreSQLRLS", "type": "infrastructure", "requires": []}
+  ],
+  "sequences": {
+    "student_entry": [
+      {"order": 1, "participant": "Porteria", "message": "Selecciona estudiante y evento"},
+      {"order": 2, "participant": "recordAccessEventAction", "message": "Valida campos, rol e institución"},
+      {"order": 3, "participant": "Supabase", "message": "Lee política y estudiante"},
+      {"order": 4, "participant": "recordAccessEventAction", "message": "Evalúa reglas y crea payload"},
+      {"order": 5, "participant": "access_events", "message": "Inserta aprobado o rechazado"},
+      {"order": 6, "participant": "apply_access_event", "message": "Actualiza estado/asistencia si aprobado"}
+    ],
+    "authorized_pickup": [
+      {"order": 1, "participant": "Porteria", "message": "Valida QR"},
+      {"order": 2, "participant": "validateStudentQrCredential", "message": "Comprueba vigencia y permiso temporal"},
+      {"order": 3, "participant": "confirm_student_qr_access_event", "message": "Bloquea y consume QR/autorización"},
+      {"order": 4, "participant": "access_events", "message": "Registra SALIDA/RETIRO_AUTORIZADO"},
+      {"order": 5, "participant": "Gap", "message": "No valida authorized_people ni identidad del retirador"}
+    ],
+    "autonomous_exit": [
+      {"order": 1, "participant": "Estudiante", "message": "Confirma salida"},
+      {"order": 2, "participant": "confirmStudentSelfExitFromForm", "message": "Exige rol estudiante"},
+      {"order": 3, "participant": "confirm_student_self_exit", "message": "Bloquea estudiante y QR"},
+      {"order": 4, "participant": "confirm_student_self_exit", "message": "Valida dentro, can_leave_alone y QR vigente"},
+      {"order": 5, "participant": "access_events", "message": "Registra SALIDA/SOLO/QR/APROBADO"}
+    ]
+  },
+  "deployment_nodes": [
+    {"name": "RoleBrowser", "status": "verified_in_code"},
+    {"name": "GateBrowserDevice", "status": "verified_in_code", "note": "Camera integration not used"},
+    {"name": "NextJsRuntime", "status": "verified_in_code"},
+    {"name": "Vercel", "status": "documented_not_verified"},
+    {"name": "SupabaseAuth", "status": "verified_in_code"},
+    {"name": "SupabasePostgreSQL", "status": "declared_in_migrations"},
+    {"name": "SupabaseStorage", "status": "No verificado en el repositorio"}
+  ],
+  "security": [
+    {"control": "Generic login error", "status": "implemented", "evidence": "src/lib/messages.ts"},
+    {"control": "Session middleware", "status": "implemented", "evidence": "src/lib/supabase/middleware.ts"},
+    {"control": "Role permissions", "status": "implemented", "evidence": "src/lib/permissions.ts"},
+    {"control": "RLS", "status": "implemented_declaratively", "evidence": "supabase/migrations"},
+    {"control": "Opaque expiring one-use QR", "status": "implemented", "evidence": "qr-credentials.ts and SQL RPC"},
+    {"control": "MFA", "status": "future", "evidence": "UI/documentation only"},
+    {"control": "Persistent failed-attempt audit", "status": "partial"},
+    {"control": "Input schemas with Zod", "status": "not_implemented"}
+  ],
+  "tests": [
+    {"type": "BDD specification", "tool": "Gherkin text", "scenario": "Login success/failure", "file": "docs/test-plan.feature", "status": "documentary"},
+    {"type": "E2E", "tool": "Playwright", "scenario": null, "file": null, "status": "not_found"},
+    {"type": "Unit", "tool": null, "scenario": null, "file": null, "status": "not_found"},
+    {"type": "Integration", "tool": null, "scenario": null, "file": null, "status": "not_found"}
+  ],
+  "gaps": [
+    {"severity": "Alta", "name": "Retiro no valida persona autorizada"},
+    {"severity": "Alta", "name": "RPC link_student_by_code ausente en migraciones"},
+    {"severity": "Alta", "name": "Aprobación y autorización no transaccionales"},
+    {"severity": "Alta", "name": "Sin pruebas automatizadas críticas"},
+    {"severity": "Alta", "name": "Rechazos QR sin auditoría persistente"},
+    {"severity": "Alta", "name": "Registro manual vulnerable a check-then-insert concurrente"},
+    {"severity": "Media", "name": "PIN sin implementación real"},
+    {"severity": "Media", "name": "Columnas de contingencia no pobladas"},
+    {"severity": "Media", "name": "CRUD administrativos incompletos"},
+    {"severity": "Media", "name": "Horario no aplicado a salidas"},
+    {"severity": "Media", "name": "Sin anulación ni soft delete de eventos"},
+    {"severity": "Media", "name": "Validación/mensajes parcialmente centralizados"},
+    {"severity": "Media", "name": "Aprobación no permite auto-salida directa"},
+    {"severity": "Baja", "name": "Estado NEW/remember-me en localStorage"}
+  ],
+  "kruchten_4_plus_1": {
+    "logical_view": ["Roles", "Entidades de dominio", "Relaciones y reglas"],
+    "process_view": ["Ingreso manual/QR", "Retiro QR", "Solicitud/aprobación", "Salida autónoma"],
+    "development_view": ["Next App Router", "Components", "Server Actions", "Supabase adapters", "SQL migrations"],
+    "physical_view": ["Browsers", "Next.js runtime", "Supabase Auth/PostgreSQL", "Vercel propuesto"],
+    "scenarios": ["Registro de ingreso", "Retiro autorizado parcial", "Salida autónoma"]
+  },
+  "diagram_readiness": [
+    {"diagram": "Casos de uso", "sufficient": true, "missing": "CRUD futuro y detalle de tercero"},
+    {"diagram": "Clases", "sufficient": true, "missing": "Decisión conceptual sobre permisos"},
+    {"diagram": "Componentes", "sufficient": true, "missing": "Infraestructura real"},
+    {"diagram": "Actividades", "sufficient": true, "missing": "Excepciones de tercero/horario"},
+    {"diagram": "Secuencia ingreso", "sufficient": true, "missing": "Política de concurrencia manual"},
+    {"diagram": "Secuencia retiro", "sufficient": false, "missing": "Validación de identidad de authorized_people"},
+    {"diagram": "Secuencia salida autónoma", "sufficient": true, "missing": "Semántica futura de aprobación directa"},
+    {"diagram": "Despliegue", "sufficient": false, "missing": "Evidencia Vercel, regiones y red"},
+    {"diagram": "Contexto", "sufficient": true, "missing": "Integraciones futuras"},
+    {"diagram": "Base de datos", "sufficient": true, "missing": "Estado desplegado"},
+    {"diagram": "Arquitectura general", "sufficient": true, "missing": "Métricas runtime"}
+  ]
+}

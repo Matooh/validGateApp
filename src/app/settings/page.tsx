@@ -3,11 +3,12 @@ import { PendingSubmitButton } from '@/components/pending-submit-button';
 import { requireUser } from '@/lib/auth';
 import {
   updateAccessPolicyAction,
-  updatePasswordAction,
+  updatePickupSettingsAction,
   updateProfileAction,
 } from '@/app/actions/auth';
 import { createClient } from '@/lib/supabase/server';
 import { DEFAULT_ACCESS_POLICY } from '@/lib/types';
+import { PasswordChangeForm } from '@/components/password-change-form';
 
 export default async function SettingsPage({
   searchParams,
@@ -36,6 +37,13 @@ export default async function SettingsPage({
     : { data: null };
 
   const policy = { ...DEFAULT_ACCESS_POLICY, ...(accessPolicy ?? {}) };
+  const { data: pickupSettings } = isAdmin && profile?.institution_id
+    ? await supabase
+        .from('institution_pickup_settings')
+        .select('pin_ttl_minutes, max_pin_attempts, student_notification_message')
+        .eq('institution_id', profile.institution_id)
+        .maybeSingle()
+    : { data: null };
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -77,20 +85,38 @@ export default async function SettingsPage({
             </PendingSubmitButton>
           </form>
 
-          <form action={updatePasswordAction} className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-semibold text-slate-900">Cambiar password</h2>
+          <PasswordChangeForm />
+        </div>
+
+        {isAdmin ? (
+          <form
+            action={updatePickupSettingsAction}
+            className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
+          >
             <div>
-              <label htmlFor="password" className="mb-2 block text-sm font-medium text-slate-700">Nueva password</label>
-              <input id="password" name="password" type="password" className="w-full rounded-xl border border-slate-300 px-4 py-3" />
+              <h2 className="text-xl font-semibold text-slate-900">Retiro con PIN dual</h2>
+              <p className="mt-1 text-sm text-slate-500">Configuración institucional aplicada a los PIN del apoderado y del estudiante.</p>
             </div>
-            <PendingSubmitButton
-              pendingLabel="Actualizando..."
-              className="rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-            >
-              Actualizar password
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label htmlFor="pin_ttl_minutes" className="mb-2 block text-sm font-medium text-slate-700">Vigencia del PIN (minutos)</label>
+                <input id="pin_ttl_minutes" name="pin_ttl_minutes" type="number" min={1} max={60} required defaultValue={pickupSettings?.pin_ttl_minutes ?? 5} className="w-full rounded-xl border border-slate-300 px-4 py-3" />
+              </div>
+              <div>
+                <label htmlFor="max_pin_attempts" className="mb-2 block text-sm font-medium text-slate-700">Máximo de intentos por persona</label>
+                <input id="max_pin_attempts" name="max_pin_attempts" type="number" min={1} max={10} required defaultValue={pickupSettings?.max_pin_attempts ?? 3} className="w-full rounded-xl border border-slate-300 px-4 py-3" />
+              </div>
+            </div>
+            <div>
+              <label htmlFor="student_notification_message" className="mb-2 block text-sm font-medium text-slate-700">Mensaje para el estudiante</label>
+              <textarea id="student_notification_message" name="student_notification_message" rows={3} required defaultValue={pickupSettings?.student_notification_message ?? '{guardian_name} está esperando por ti'} className="w-full rounded-xl border border-slate-300 px-4 py-3" />
+              <p className="mt-1 text-xs text-slate-500">Usa {'{guardian_name}'} para insertar el nombre del apoderado.</p>
+            </div>
+            <PendingSubmitButton pendingLabel="Guardando..." className="rounded-xl bg-sky-700 px-4 py-3 font-semibold text-white hover:bg-sky-800">
+              Guardar configuración de retiro
             </PendingSubmitButton>
           </form>
-        </div>
+        ) : null}
 
         {isAdmin ? (
           <form

@@ -5,9 +5,11 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 import { createClient } from '@/lib/supabase/server';
+import { requireUser } from '@/lib/auth';
 import { normalizeChileMobilePhone } from '@/lib/chile/phone';
 import { normalizeRut } from '@/lib/chile/rut';
 import { APP_MESSAGES } from '@/lib/messages';
+import { validatePassword } from '@/lib/password';
 import type { FormState } from '@/lib/types';
 
 const SESSION_PERSISTENCE_COOKIE = 'validgate-session-persistence';
@@ -144,21 +146,99 @@ export async function updateProfileAction(formData: FormData) {
   redirect('/settings?message=Actualizacion+éxitosa');
 }
 
-export async function updatePasswordAction(formData: FormData) {
-  const password = String(formData.get('password') ?? '').trim();
+export type PasswordChangeState = {
+  success: boolean;
+  message: string;
+  fieldErrors: Partial<Record<'currentPassword' | 'newPassword' | 'confirmPassword', string>>;
+};
 
-  if (password.length < 6) {
-    redirect('/settings?message=La+password+debe+tener+al+menos+6+caracteres');
+export async function updatePasswordAction(
+  _: PasswordChangeState,
+  formData: FormData,
+): Promise<PasswordChangeState> {
+  const currentPassword = String(formData.get('current_password') ?? '');
+  const newPassword = String(formData.get('new_password') ?? '');
+  const confirmPassword = String(formData.get('confirm_password') ?? '');
+  const fieldErrors: PasswordChangeState['fieldErrors'] = {};
+
+  if (!currentPassword) fieldErrors.currentPassword = 'La contraseña actual es obligatoria.';
+  const passwordError = validatePassword(newPassword);
+  if (passwordError) fieldErrors.newPassword = passwordError;
+  if (!confirmPassword) fieldErrors.confirmPassword = 'Debes repetir la nueva contraseña.';
+  else if (newPassword !== confirmPassword) fieldErrors.confirmPassword = 'Las contraseñas nuevas no coinciden.';
+  if (currentPassword && newPassword && currentPassword === newPassword) {
+    fieldErrors.newPassword = 'La nueva contraseña debe ser diferente de la actual.';
+  }
+  if (Object.keys(fieldErrors).length) {
+    return { success: false, message: 'Revisa los campos indicados.', fieldErrors };
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.updateUser({ password });
-
-  if (error) {
-    redirect('/settings?message=No+se+pudo+cambiar+la+password');
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  const email = userData.user?.email;
+  if (userError || !email) {
+    return { success: false, message: 'Tu sesión no es válida. Vuelve a iniciar sesión.', fieldErrors: {} };
   }
 
-  redirect('/settings?message=Password+actualizada');
+  const { error: reauthenticationError } = await supabase.auth.signInWithPassword({
+    email,
+    password: currentPassword,
+  });
+  if (reauthenticationError) {
+    return {
+      success: false,
+      message: 'No fue posible validar la contraseña actual.',
+      fieldErrors: { currentPassword: 'La contraseña actual no es correcta.' },
+    };
+  }
+
+  const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+  if (updateError) {
+    return {
+      success: false,
+      message: 'No fue posible cambiar la contraseña. Inténtalo nuevamente.',
+      fieldErrors: {},
+    };
+  }
+
+  return { success: true, message: 'Contraseña actualizada correctamente.', fieldErrors: {} };
+}
+
+export async function updatePickupSettingsAction(formData: FormData) {
+  const { profile } = await requireUser();
+  if (profile?.role !== 'ADMIN' || !profile.institution_id) {
+    redirect('/settings?message=No+tienes+permisos+para+modificar+esta+configuraci%C3%B3n');
+  }
+
+  const pinTtlMinutes = Number(formData.get('pin_ttl_minutes'));
+  const maxPinAttempts = Number(formData.get('max_pin_attempts'));
+  const studentNotificationMessage = String(formData.get('student_notification_message') ?? '').trim();
+
+  if (!Number.isInteger(pinTtlMinutes) || pinTtlMinutes < 1 || pinTtlMinutes > 60) {
+    redirect('/settings?message=La+vigencia+del+PIN+debe+estar+entre+1+y+60+minutos');
+  }
+  if (!Number.isInteger(maxPinAttempts) || maxPinAttempts < 1 || maxPinAttempts > 10) {
+    redirect('/settings?message=Los+intentos+deben+estar+entre+1+y+10');
+  }
+  if (!studentNotificationMessage) {
+    redirect('/settings?message=El+mensaje+para+el+estudiante+es+obligatorio');
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from('institution_pickup_settings').upsert({
+    institution_id: profile.institution_id,
+    pin_ttl_minutes: pinTtlMinutes,
+    max_pin_attempts: maxPinAttempts,
+    student_notification_message: studentNotificationMessage,
+  }, { onConflict: 'institution_id' });
+
+  if (error) {
+    redirect('/settings?message=No+se+pudo+actualizar+la+configuraci%C3%B3n+de+retiro');
+  }
+
+  revalidatePath('/settings');
+  revalidatePath('/dashboard');
+  redirect('/settings?message=Configuraci%C3%B3n+de+retiro+actualizada');
 }
 
 export async function updateAccessPolicyAction(formData: FormData) {

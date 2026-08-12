@@ -8,7 +8,13 @@ export const INITIAL_FORM_STATE: FormState = {
   message: '',
 };
 
-export type AppRole = 'ADMIN' | 'APODERADO' | 'PORTERIA' | 'DOCENTE' | 'ESTUDIANTE';
+export type AppRole =
+  | 'ADMIN'
+  | 'APODERADO'
+  | 'RETIRADOR_AUTORIZADO'
+  | 'PORTERIA'
+  | 'DOCENTE'
+  | 'ESTUDIANTE';
 
 export type AccessPolicy = {
   entry_requires_authenticator: boolean;

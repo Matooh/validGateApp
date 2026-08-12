@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 
 import newBadgeIcon from '../../assets/icons/new.png';
 
@@ -44,8 +45,8 @@ export function RecentEventCard({
       onMouseEnter={markAsViewed}
     >
       {shouldShowNewBadge ? (
-        <img
-          src={newBadgeIcon.src}
+        <Image
+          src={newBadgeIcon}
           alt=""
           aria-hidden="true"
           draggable={false}

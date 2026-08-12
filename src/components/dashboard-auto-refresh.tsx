@@ -16,7 +16,8 @@ export function DashboardAutoRefresh({ expiresAt }: DashboardAutoRefreshProps) {
   useEffect(() => {
     const supabase = createClient();
     const refreshDashboard = () => router.refresh();
-    const expirationTimes = expiresAt
+    const expirationTimes = refreshKey
+      .split('|')
       .map((value) => (value ? new Date(value).getTime() : Number.NaN))
       .filter((value) => Number.isFinite(value));
 
@@ -38,6 +39,16 @@ export function DashboardAutoRefresh({ expiresAt }: DashboardAutoRefreshProps) {
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'students' },
+        refreshDashboard,
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'guardian_pickup_requests' },
+        refreshDashboard,
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'internal_notifications' },
         refreshDashboard,
       )
       .subscribe();

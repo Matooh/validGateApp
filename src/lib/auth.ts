@@ -27,7 +27,7 @@ export async function requireStaff() {
 
   const allowedRoles: AppRole[] = ['ADMIN', 'PORTERIA', 'DOCENTE'];
   if (!profile || !allowedRoles.includes(profile.role as AppRole)) {
-    redirect('/dashboard?message=No+tienes+permisos+para+esta+sección');
+    redirect('/dashboard?message=No+tienes+permiso+para+esta+secci%C3%B3n');
   }
 
   return { user, profile };

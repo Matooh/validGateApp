@@ -15,7 +15,10 @@ export async function linkStudentByCodeAction(formData: FormData) {
     redirect('/students/link?kind=error&message=Ingresa+un+código+de+vinculación');
   }
 
-  await requireUser();
+  const { profile } = await requireUser();
+  if (profile?.role !== 'APODERADO') {
+    redirect('/dashboard?message=Solo+los+apoderados+pueden+vincularse+mediante+c%C3%B3digo');
+  }
   const supabase = await createClient();
 
   const { data, error } = await supabase.rpc('link_student_by_code', {
@@ -37,6 +40,10 @@ export async function linkStudentByCodeAction(formData: FormData) {
     redirect('/students/link?kind=info&message=Este+estudiante+ya+está+vinculado+a+tu+cuenta');
   }
 
+  if (status === 'forbidden') {
+    redirect('/dashboard?message=No+tienes+permisos+para+vincular+un+estudiante');
+  }
+
   if (status === 'linked') {
     revalidatePath('/dashboard');
     redirect('/dashboard?message=Vinculación+éxitosa');
@@ -47,14 +54,18 @@ export async function linkStudentByCodeAction(formData: FormData) {
 
 export async function unlinkStudentAction(formData: FormData) {
   const relationId = Number(formData.get('relation_id'));
-  const { user } = await requireUser();
+  const { user, profile } = await requireUser();
+  if (profile?.role !== 'APODERADO') {
+    redirect('/dashboard?message=No+tienes+permisos+para+desvincular+estudiantes');
+  }
   const supabase = await createClient();
 
   const { error } = await supabase
     .from('guardian_students')
     .delete()
     .eq('id', relationId)
-    .eq('guardian_profile_id', user.id);
+    .eq('guardian_profile_id', user.id)
+    .eq('relation_type', 'APODERADO');
 
   if (error) {
     redirect('/dashboard?message=No+se+pudo+desvincular+el+estudiante');

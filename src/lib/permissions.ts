@@ -6,6 +6,8 @@ export type AppPermission =
   | 'register_access_event'
   | 'view_recent_events'
   | 'view_students_linked'
+  | 'view_links'
+  | 'authorize_retirador'
   | 'link_student'
   | 'unlink_student'
   | 'view_student_detail'
@@ -24,7 +26,8 @@ const ROLE_PERMISSIONS: Record<AppRole, AppPermission[]> = {
     'register_access_event',
     'view_recent_events',
     'view_students_linked',
-    'link_student',
+    'view_links',
+    'authorize_retirador',
     'unlink_student',
     'view_student_detail',
     'view_authentications',
@@ -53,14 +56,23 @@ const ROLE_PERMISSIONS: Record<AppRole, AppPermission[]> = {
   APODERADO: [
     'view_dashboard',
     'view_students_linked',
+    'view_links',
+    'authorize_retirador',
     'link_student',
     'unlink_student',
     'view_student_detail',
     'view_authentications',
     'view_recent_events',
   ],
+  RETIRADOR_AUTORIZADO: [
+    'view_dashboard',
+    'view_students_linked',
+    'view_links',
+    'view_recent_events',
+  ],
   ESTUDIANTE: [
     'view_dashboard',
+    'view_links',
     'view_student_detail',
     'view_authentications',
     'view_attendance',
