@@ -23,6 +23,7 @@ const BADGES: Record<string, BadgeDefinition> = {
   ANULADO: { label: 'Anulado', symbol: '—', className: 'border-slate-200 bg-slate-100 text-slate-700' },
   MANUAL: { label: 'Manual', symbol: '◆', className: 'border-orange-200 bg-orange-100 text-orange-800' },
   CONTINGENCIA: { label: 'Contingencia', symbol: '◆', className: 'border-orange-200 bg-orange-100 text-orange-800' },
+  EXCEPCIONAL: { label: 'Excepcional', symbol: '!', className: 'border-fuchsia-200 bg-fuchsia-100 text-fuchsia-800' },
 };
 
 function fallbackDefinition(value: string): BadgeDefinition {

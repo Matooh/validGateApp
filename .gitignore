@@ -8,7 +8,8 @@ node_modules
 tsconfig.tsbuildinfo
 
 # Playwright: reportes y evidencias generadas
-reports/
+reports/*
+!reports/README.md
 test-results/
 playwright-report/
 blob-report/

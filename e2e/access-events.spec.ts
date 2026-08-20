@@ -20,6 +20,52 @@ test.describe('Ingreso, salida y salida autónoma', () => {
     await expect(recentEvent.getByText('Aprobado', { exact: true })).toBeVisible();
   });
 
+  test('PF-ING-001 — Mantener el formulario al refrescar el estado de portería', async ({ page }) => {
+    await login(page, 'PORTERIA');
+    await page.goto('/guard');
+    await selectStudentInGuard(page, 'Estudiante E2E Fuera');
+    await fillManualAccessForm(page);
+
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await page.waitForTimeout(1_000);
+
+    await expect(page.getByLabel('Buscador de estudiante')).toHaveValue('Estudiante E2E Fuera');
+    await expect(page.getByLabel(/^Evento/)).toHaveValue('INGRESO');
+    await expect(page.getByLabel(/Método de validación/)).toHaveValue('MANUAL');
+    await expect(page.getByLabel(/Motivo de contingencia/)).toHaveValue('SIN_DISPOSITIVO');
+    await expect(page.getByLabel(/Resultado/)).toHaveValue('APROBADO');
+  });
+
+  test('PF-ING-001 — Explicar la política, resumir con viñetas y destacar la observación faltante', async ({ page }) => {
+    await setExitPolicy(true, true);
+    await login(page, 'PORTERIA');
+    await page.goto('/guard');
+    await expect(page.getByRole('heading', { name: 'Registro manual de ingreso y salida' })).toBeVisible();
+    await selectStudentInGuard(page, 'Estudiante E2E Fuera');
+    await page.getByLabel(/Método de validación/).selectOption('MANUAL');
+    await expect(page.getByLabel('Tipo de contingencia')).toHaveValue('CONTINGENCIA_SIN_DISPOSITIVO');
+    await page.getByLabel(/Motivo de contingencia/).selectOption('OTRO');
+    await page.getByLabel(/Resultado/).selectOption('APROBADO');
+    await page.getByLabel('Descripción del evento').fill('Ingreso manual documentado');
+
+    const summary = page.getByText('Resumen de selección', { exact: true }).locator('..');
+    await expect(summary.locator('ul > li')).toHaveCount(2);
+    await expect(summary).toContainText('Se APRUEBA ENTRADA para Estudiante E2E Fuera mediante REGISTRO MANUAL.');
+    await expect(summary).toContainText('Contingencia: Dispositivo.');
+
+    const policy = page.getByText('Política aplicada', { exact: true }).locator('..');
+    await expect(policy.locator('ul > li')).toHaveCount(2);
+    await expect(policy).toContainText('Ingreso: Autónomo; registro manual permitido.');
+    await expect(policy).toContainText('Salida: QR/PIN obligatorio; el retiro requiere validación dual');
+
+    await page.getByLabel('Descripción del evento').fill('');
+    await page.getByRole('button', { name: 'Registrar evento' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'Revisa la información antes de continuar' }))
+      .toContainText('Debes registrar una observación para la contingencia.');
+    await expect(page.getByLabel('Descripción del evento')).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.getByText('Describe la contingencia antes de registrar el evento.')).toBeVisible();
+  });
+
   test('PF-ING-003 — Impedir ingreso a estudiante que ya está dentro', async ({ page, captureEvidence }) => {
     await login(page, 'PORTERIA');
     await page.goto('/guard');
@@ -38,6 +84,47 @@ test.describe('Ingreso, salida y salida autónoma', () => {
     await page.getByRole('button', { name: 'Registrar evento' }).click();
     await expect(page.getByText('La configuración exige QR o PIN para este evento.')).toBeVisible();
     await expect(page).toHaveURL(/\/guard/);
+  });
+
+  test('PF-SAL-003 — Permitir una salida excepcional documentada', async ({ page }) => {
+    await setExitPolicy(true, true);
+    await login(page, 'PORTERIA');
+    await page.goto('/guard');
+    await selectStudentInGuard(page, 'Estudiante E2E Dentro');
+    await fillManualAccessForm(page, { exitKind: 'EXCEPCIONAL' });
+
+    const policy = page.getByText('Política aplicada', { exact: true }).locator('..');
+    await expect(policy).toContainText('Excepcional: omite QR/PIN y aprobación; observación obligatoria.');
+    await page.getByRole('button', { name: 'Registrar evento' }).click();
+
+    await expect(page.getByText('Evento registrado')).toBeVisible();
+    const recentEvent = page.locator('article').filter({ hasText: 'Estudiante E2E Dentro' }).first();
+    await expect(recentEvent.getByText('Excepcional', { exact: true })).toBeVisible();
+    await expect(recentEvent.getByText('Aprobado', { exact: true })).toBeVisible();
+  });
+
+  test('PF-SAL-003 — Solicitar aprobación del apoderado para salida por contingencia', async ({ page }) => {
+    await setExitPolicy(true, true);
+    await setStudentState('inside', { inside: true, canLeaveAlone: true });
+    await login(page, 'PORTERIA');
+    await page.goto('/guard');
+    await selectStudentInGuard(page, 'Estudiante E2E Dentro');
+    await fillManualAccessForm(page, { exitKind: 'SOLO' });
+
+    const summary = page.getByText('Resumen de selección', { exact: true }).locator('..');
+    await expect(summary).toContainText('Se SOLICITA AUTORIZACIÓN DE SALIDA');
+    await page.getByRole('button', { name: 'Registrar evento' }).click();
+    await expect(page.getByText(/Solicitud de contingencia enviada al apoderado/)).toBeVisible();
+
+    await page.context().clearCookies();
+    await login(page, 'APODERADO');
+    const pendingRequest = page.locator('article').filter({ hasText: 'Estudiante E2E Dentro' }).filter({ hasText: 'Salida manual por contingencia' }).first();
+    await expect(pendingRequest).toBeVisible();
+    await pendingRequest.getByRole('button', { name: 'Aprobar' }).click();
+
+    await expect(page.getByText('Solicitud aprobada por el apoderado.')).toBeVisible();
+    const studentCard = page.locator('article').filter({ hasText: 'Estudiante E2E Dentro' }).filter({ hasText: 'Fuera de institución' }).first();
+    await expect(studentCard).toBeVisible();
   });
 
   test('PF-SAL-004 — Confirmar una salida regular mediante QR', async ({ page }) => {

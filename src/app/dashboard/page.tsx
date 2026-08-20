@@ -361,7 +361,7 @@ export default async function DashboardPage({
       return {
         id: ar.id,
         event_type: requestLabel,
-        exit_kind: ar.request_type === 'EXIT_ALONE' ? 'SOLO' : 'RETIRO_AUTORIZADO',
+        exit_kind: ['EXIT_ALONE', 'EXIT_CONTINGENCY'].includes(ar.request_type) ? 'SOLO' : 'RETIRO_AUTORIZADO',
         validation_kind: 'SOLICITUD',
         result: ar.status,
         occurred_at: ar.responded_at ?? ar.requested_at,
@@ -824,6 +824,11 @@ export default async function DashboardPage({
                         <p className="mt-1 text-sm text-slate-500">
                           Estado: {request.isInInstitution ? 'Dentro de la institución' : 'Fuera de la institución'}
                         </p>
+                        {request.requestType === 'EXIT_CONTINGENCY' ? (
+                          <p className="mt-2 text-sm font-medium text-amber-800">
+                            Salida manual por contingencia solicitada desde Portería.
+                          </p>
+                        ) : null}
                         {request.reason ? (
                           <p className="mt-2 rounded-xl bg-white px-3 py-2 text-sm text-slate-700">
                             <span className="font-medium">Motivo:</span> {request.reason}
@@ -896,7 +901,15 @@ export default async function DashboardPage({
                         <p className="mt-1 break-words text-sm text-slate-500">{event.requestLabel}</p>
                       ) : null}
                       <div className="mt-2 flex flex-wrap gap-2">
-                        <StatusBadge value={event.isAuthRequest || event.exit_kind === 'RETIRO_AUTORIZADO' ? 'RETIRO' : event.event_type} />
+                        <StatusBadge
+                          value={
+                            event.isAuthRequest || event.exit_kind === 'RETIRO_AUTORIZADO'
+                              ? 'RETIRO'
+                              : event.exit_kind === 'EXCEPCIONAL'
+                                ? 'EXCEPCIONAL'
+                                : event.event_type
+                          }
+                        />
                         <StatusBadge value={event.result} />
                         {!event.isAuthRequest && event.validation_kind === 'MANUAL' ? <StatusBadge value="MANUAL" /> : null}
                       </div>

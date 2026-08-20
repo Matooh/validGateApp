@@ -189,7 +189,15 @@ export default async function GuardPage({
                               : 'Estudiante'}{' '}
                           </p>
                           <div className="mt-2 flex flex-wrap gap-2">
-                            <StatusBadge value={event.exit_kind === 'RETIRO_AUTORIZADO' ? 'RETIRO' : event.event_type} />
+                            <StatusBadge
+                              value={
+                                event.exit_kind === 'RETIRO_AUTORIZADO'
+                                  ? 'RETIRO'
+                                  : event.exit_kind === 'EXCEPCIONAL'
+                                    ? 'EXCEPCIONAL'
+                                    : event.event_type
+                              }
+                            />
                             <StatusBadge value={event.result} />
                             {event.validation_kind === 'MANUAL' ? <StatusBadge value="MANUAL" /> : null}
                           </div>

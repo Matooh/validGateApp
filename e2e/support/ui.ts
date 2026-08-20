@@ -25,7 +25,7 @@ export async function selectStudentInGuard(page: Page, name: string) {
 
 export async function fillManualAccessForm(
   page: Page,
-  options: { exitKind?: 'REGULAR' | 'RETIRO_AUTORIZADO' | 'SOLO'; result?: 'APROBADO' | 'RECHAZADO' } = {},
+  options: { exitKind?: 'REGULAR' | 'RETIRO_AUTORIZADO' | 'SOLO' | 'EXCEPCIONAL'; result?: 'APROBADO' | 'RECHAZADO' } = {},
 ) {
   await page.getByLabel(/Método de validación/).selectOption('MANUAL');
   await page.getByLabel(/Motivo de contingencia/).selectOption('SIN_DISPOSITIVO');

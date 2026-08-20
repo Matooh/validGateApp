@@ -15,18 +15,26 @@ export function DashboardAutoRefresh({ expiresAt }: DashboardAutoRefreshProps) {
 
   useEffect(() => {
     const supabase = createClient();
-    const refreshDashboard = () => router.refresh();
+    const refreshDashboard = () => {
+      const hasPendingFormInput = document.querySelector(
+        '[data-auto-refresh-blocker="true"]',
+      );
+
+      if (hasPendingFormInput) return;
+      router.refresh();
+    };
+    const now = Date.now();
     const expirationTimes = refreshKey
       .split('|')
       .map((value) => (value ? new Date(value).getTime() : Number.NaN))
-      .filter((value) => Number.isFinite(value));
+      .filter((value) => Number.isFinite(value) && value > now);
 
     const nextExpiration = expirationTimes.length > 0 ? Math.min(...expirationTimes) : null;
     const expirationTimerId = nextExpiration === null
       ? null
       : window.setTimeout(
           refreshDashboard,
-          Math.max(nextExpiration - Date.now() + 1000, 0),
+          nextExpiration - now + 1000,
         );
 
     const realtimeChannel = supabase

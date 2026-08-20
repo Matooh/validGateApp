@@ -388,6 +388,7 @@ export function RecordAccessForm({
 
     if (
       eventType &&
+      exitKind !== 'EXCEPCIONAL' &&
       currentEventPolicy.requiresAuthenticator &&
       currentEventPolicy.authenticatorIsExclusive &&
       !authenticatorPresented
@@ -397,12 +398,17 @@ export function RecordAccessForm({
 
     if (
       eventType === 'SALIDA' &&
+      exitKind !== 'EXCEPCIONAL' &&
       accessPolicy.exit_requires_authenticator &&
       accessPolicy.exit_requires_observation_without_authenticator &&
       !authenticatorPresented &&
       !notes.trim()
     ) {
       nextWarnings.push('Agrega una observación para justificar una salida sin QR o PIN.');
+    }
+
+    if (eventType === 'SALIDA' && exitKind === 'EXCEPCIONAL' && !notes.trim()) {
+      nextWarnings.push('Debes registrar una observación para la salida excepcional.');
     }
 
     const studentsToCheck = selectedStudentsForRules;
@@ -475,22 +481,36 @@ export function RecordAccessForm({
     Boolean(validationSummary) &&
     (eventType !== 'SALIDA' || Boolean(exitKind)) &&
     (contingencyMode !== 'CONTINGENCIA_SIN_DISPOSITIVO' ||
-      Boolean(contingencyReason));
+      Boolean(contingencyReason)) &&
+    (contingencyMode !== 'CONTINGENCIA_SIN_DISPOSITIVO' || Boolean(notes.trim())) &&
+    (exitKind !== 'EXCEPCIONAL' || Boolean(notes.trim()));
 
-  const summaryMessage = summaryHasRequiredFields
+  const requiresGuardianContingencyApproval =
+    eventType === 'SALIDA' &&
+    exitKind === 'SOLO' &&
+    validationKind === 'MANUAL' &&
+    usingContingency &&
+    accessPolicy.exit_requires_authenticator &&
+    accessPolicy.exit_authenticator_is_exclusive &&
+    selectedStudentsForRules.length > 0 &&
+    selectedStudentsForRules.every((student) => student.can_leave_alone);
+
+  const summaryItems = summaryHasRequiredFields
     ? [
-        `Se ${resultSummary} ${eventSummary} para ${selectedStudentSummary} mediante ${validationSummary}.`,
+        requiresGuardianContingencyApproval
+          ? `Se SOLICITA AUTORIZACIÓN DE SALIDA para ${selectedStudentSummary} mediante aprobación del apoderado.`
+          : `Se ${resultSummary} ${eventSummary} para ${selectedStudentSummary} mediante ${validationSummary}.`,
         contingencyMode === 'CONTINGENCIA_SIN_DISPOSITIVO' ? 'Contingencia: Dispositivo.' : '',
-      ]
-        .filter(Boolean)
-        .join(' ')
-    : searchMode === 'student'
-      ? selectedStudentId
-        ? 'Completa la información obligatoria para generar el resumen de selección.'
-        : 'Debes seleccionar un estudiante.'
-      : selectedCount > 0
-        ? 'Completa la información obligatoria para generar el resumen de selección.'
-        : 'Debes seleccionar al menos un estudiante del curso.';
+      ].filter(Boolean)
+    : [
+        searchMode === 'student'
+          ? selectedStudentId
+            ? 'Completa la información obligatoria para generar el resumen de selección.'
+            : 'Debes seleccionar un estudiante.'
+          : selectedCount > 0
+            ? 'Completa la información obligatoria para generar el resumen de selección.'
+            : 'Debes seleccionar al menos un estudiante del curso.',
+      ];
 
   const summaryIsWarning =
     !summaryHasRequiredFields;
@@ -503,6 +523,8 @@ export function RecordAccessForm({
   const contingencyModeIsMissing = validationKind === 'MANUAL' && contingencyMode !== 'CONTINGENCIA_SIN_DISPOSITIVO';
   const contingencyReasonIsMissing = contingencyMode === 'CONTINGENCIA_SIN_DISPOSITIVO' && !contingencyReason;
   const resultIsMissing = !result;
+  const notesAreRequired = usingContingency || exitKind === 'EXCEPCIONAL';
+  const notesAreMissing = notesAreRequired && !notes.trim();
 
   const requiredFieldsAreComplete =
     !studentIsMissing &&
@@ -514,17 +536,55 @@ export function RecordAccessForm({
     !contingencyReasonIsMissing &&
     !resultIsMissing;
 
+  const entryPolicySummary = accessPolicy.entry_requires_authenticator
+    ? accessPolicy.entry_authenticator_is_exclusive
+      ? 'QR/PIN obligatorio.'
+      : 'QR/PIN recomendado; registro manual permitido.'
+    : 'Autónomo; registro manual permitido.';
+
+  const exitPolicySummary = exitKind === 'EXCEPCIONAL'
+    ? 'Excepcional: omite QR/PIN y aprobación; observación obligatoria.'
+    : selectedStudentsForRules.some((student) => !student.can_leave_alone)
+      ? 'QR/PIN obligatorio; el retiro requiere validación dual del estudiante y su responsable.'
+      : accessPolicy.exit_requires_authenticator
+        ? accessPolicy.exit_authenticator_is_exclusive
+          ? 'QR/PIN obligatorio; ante contingencia sin dispositivo, aprobación del apoderado obligatoria.'
+          : 'QR/PIN requerido; las excepciones deben quedar documentadas.'
+        : 'Registro manual permitido.';
+
+  const hasPendingFormInput = Boolean(
+    studentQuery ||
+    courseId ||
+    courseQuery ||
+    selectedStudentId ||
+    selectedCourseStudentIds.length > 0 ||
+    eventType ||
+    validationKind ||
+    contingencyReason ||
+    result ||
+    exitKind ||
+    notes,
+  );
+
   return (
     <form
-  action={recordAccessEventAction}
-  onKeyDown={handleFormKeyDown}
-  onSubmit={(event) => {
-    if (!validateForm()) {
-      event.preventDefault();
-    }
-  }}
-  className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:grid-cols-2"
->
+      action={recordAccessEventAction}
+      data-auto-refresh-blocker={hasPendingFormInput ? 'true' : undefined}
+      onKeyDown={handleFormKeyDown}
+      onSubmit={(event) => {
+        if (!validateForm()) {
+          event.preventDefault();
+        }
+      }}
+      className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:grid-cols-2"
+    >
+      <div className="md:col-span-2">
+        <h2 className="text-xl font-semibold text-slate-900">Registro manual de ingreso y salida</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Selecciona estudiantes y registra el evento con su validación y trazabilidad correspondiente.
+        </p>
+      </div>
+
       <div className="md:col-span-2">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -832,6 +892,7 @@ export function RecordAccessForm({
               <option value="REGULAR">Regular</option>
               <option value="RETIRO_AUTORIZADO">Retiro autorizado</option>
               <option value="SOLO">Salida por voluntad del estudiante</option>
+              <option value="EXCEPCIONAL">Excepcional</option>
             </select>
           ) : (
             <>
@@ -875,7 +936,7 @@ export function RecordAccessForm({
       {validationKind === 'MANUAL' ? (
         <div>
           <label htmlFor="contingency_mode" className={fieldLabelClass(contingencyModeIsMissing)}>
-            Contingencia por dispositivo
+            Tipo de contingencia
             <RequiredMark />
           </label>
           <select
@@ -962,19 +1023,35 @@ export function RecordAccessForm({
       </div>
 
       <div className="md:col-span-2">
-        <label htmlFor="notes" className="mb-2 block text-sm font-medium text-slate-700">
+        <label htmlFor="notes" className={fieldLabelClass(notesAreMissing)}>
           Descripción del evento
+          {notesAreRequired ? <RequiredMark /> : null}
         </label>
         <textarea
           id="notes"
           name="notes"
           rows={4}
           value={notes}
-          onChange={(event) => setNotes(event.target.value)}
+          onChange={(event) => {
+            setNotes(event.target.value);
+            setWarnings([]);
+          }}
           onKeyDown={handleBlockedEnter}
+          aria-invalid={notesAreMissing}
+          aria-describedby={notesAreMissing ? 'notes-error' : 'notes-help'}
           placeholder="Ejemplo: retiro anticipado por cita médica, ingreso con justificación, observaciones relevantes..."
-          className="w-full rounded-xl border border-slate-300 px-4 py-3"
+          className={fieldClass(notesAreMissing)}
         />
+        <p
+          id={notesAreMissing ? 'notes-error' : 'notes-help'}
+          className={`mt-2 text-xs ${notesAreMissing ? 'font-medium text-red-700' : 'text-slate-500'}`}
+        >
+          {notesAreMissing
+            ? exitKind === 'EXCEPCIONAL'
+              ? 'Describe el motivo que justifica la salida excepcional.'
+              : 'Describe la contingencia antes de registrar el evento.'
+            : 'La descripción permite justificar y auditar decisiones excepcionales o de contingencia.'}
+        </p>
       </div>
 
       <div
@@ -991,27 +1068,17 @@ export function RecordAccessForm({
         >
           Resumen de selección
         </p>
-        <p className={`mt-1 text-sm ${summaryIsWarning ? 'text-amber-800' : 'text-slate-600'}`}>
-          {summaryMessage}
-        </p>
+        <ul className={`mt-2 list-disc space-y-1 pl-5 text-sm ${summaryIsWarning ? 'text-amber-800' : 'text-slate-600'}`}>
+          {summaryItems.map((item) => <li key={item}>{item}</li>)}
+        </ul>
       </div>
 
       <div className="md:col-span-2 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3">
         <p className="text-sm font-semibold text-sky-950">Política aplicada</p>
-        <p className="mt-1 text-sm text-sky-900">
-          Ingreso:{' '}
-          {accessPolicy.entry_requires_authenticator
-            ? accessPolicy.entry_authenticator_is_exclusive
-              ? 'QR/PIN obligatorio y excluyente'
-              : 'QR/PIN recomendado, manual permitido'
-            : 'manual permitido'}.
-          {' '}Salida:{' '}
-          {accessPolicy.exit_requires_authenticator
-            ? accessPolicy.exit_authenticator_is_exclusive
-              ? 'QR/PIN obligatorio y excluyente'
-              : 'QR/PIN requerido con excepción documentada'
-            : 'manual permitido'}.
-        </p>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-sky-900">
+          <li><span className="font-medium">Ingreso:</span> {entryPolicySummary}</li>
+          <li><span className="font-medium">Salida:</span> {exitPolicySummary}</li>
+        </ul>
       </div>
 
       {warnings.length > 0 ? (
