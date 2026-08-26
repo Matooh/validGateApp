@@ -64,23 +64,86 @@ test.describe('Autenticación, roles y vinculación', () => {
     await captureEvidence('Consulta de estudiante ajeno rechazada con mensaje explicativo');
   });
 
-  test('PF-VIN-ADM-001 — Permitir al administrador gestionar vinculaciones existentes', async ({ page }) => {
-    await login(page, 'ADMIN');
-    await page.goto('/admin/relationships');
-    await expect(page.getByRole('heading', { name: 'Vinculación Apoderado-Estudiante' })).toBeVisible();
+  test('PF-VIN-ADM-001 — Permitir al administrador gestionar vinculaciones existentes', async ({ page, captureEvidence }) => {
+    expect(await isOutsideStudentLinkedToGuardian()).toBe(false);
+    try {
+      await login(page, 'ADMIN');
+      await page.goto('/admin/relationships');
+      await expect(page.getByRole('heading', { name: 'Vinculación Apoderado-Estudiante' })).toBeVisible();
 
-    const studentValue = await page.locator('#student_id option').filter({ hasText: 'Estudiante E2E Fuera' }).getAttribute('value');
-    const guardianValue = await page.locator('#guardian_profile_id option').filter({ hasText: 'Apoderado E2E' }).getAttribute('value');
-    expect(studentValue).not.toBeNull();
-    expect(guardianValue).not.toBeNull();
-    await page.getByLabel('Estudiante').selectOption(studentValue!);
-    await page.getByLabel('Apoderado').selectOption(guardianValue!);
-    await page.getByRole('button', { name: 'Guardar vinculación' }).click();
+      const studentSelect = page.getByLabel('Estudiante');
+      const guardianSelect = page.getByLabel('Apoderado', { exact: true });
+      const addRelationshipForm = page.getByRole('heading', { name: 'Agregar vinculación' }).locator('xpath=ancestor::form[1]');
+      const relationshipsSection = page.getByRole('heading', { name: 'Relaciones actuales' }).locator('xpath=ancestor::section[1]');
+      const relationshipSearch = page.getByLabel('Buscar relaciones');
+      const relationshipCount = relationshipsSection.locator('[aria-live="polite"]');
+      const insideStudentValue = await page.locator('#student_id option').filter({ hasText: 'Estudiante E2E Dentro' }).getAttribute('value');
+      const studentValue = await page.locator('#student_id option').filter({ hasText: 'Estudiante E2E Fuera' }).getAttribute('value');
+      const guardianValue = await page.locator('#guardian_profile_id option').filter({ hasText: 'Apoderado E2E' }).getAttribute('value');
+      expect(insideStudentValue).not.toBeNull();
+      expect(studentValue).not.toBeNull();
+      expect(guardianValue).not.toBeNull();
 
-    await expect(page.getByText('Vinculación guardada correctamente.')).toBeVisible();
-    const relationship = page.locator('details').filter({ hasText: 'Estudiante E2E Fuera' });
-    await expect(relationship).toContainText('Apoderado E2E');
-    await expect(relationship).toContainText('Apoderado');
+      await expect(studentSelect).toHaveValue('');
+      await expect(guardianSelect).toHaveValue('');
+      await captureEvidence('Vista 1: formulario de vinculación con ambos combos por defecto');
+
+      await studentSelect.click();
+      await expect(studentSelect).toBeFocused();
+      await captureEvidence('Vista 2: combo de estudiantes desplegado');
+
+      await studentSelect.selectOption(insideStudentValue!);
+      await expect(studentSelect).toHaveValue(insideStudentValue!);
+      await expect(guardianSelect).toHaveValue('');
+      await captureEvidence('Vista 3: estudiante con vínculo existente seleccionado', addRelationshipForm);
+
+      await relationshipSearch.fill('Estudiante E2E Dentro');
+      await expect(relationshipCount).toHaveText('1 estudiante · 1 vínculo');
+      const initialRelationship = relationshipsSection.getByRole('button', { name: /Estudiante E2E Dentro.*1 vínculo/ });
+      await expect(initialRelationship).toHaveAttribute('aria-expanded', 'false');
+      await initialRelationship.click();
+      await expect(initialRelationship).toHaveAttribute('aria-expanded', 'true');
+      const initialGroup = initialRelationship.locator('xpath=ancestor::article[1]');
+      await expect(initialGroup.getByRole('button', { name: 'Administrar' })).toBeVisible();
+      await expect(initialGroup.getByRole('button', { name: 'Desvincular' })).not.toBeVisible();
+      await captureEvidence('Vista 4: vínculo actual del estudiante seleccionado desplegado', relationshipsSection);
+
+      await studentSelect.selectOption(studentValue!);
+      await expect(studentSelect).toHaveValue(studentValue!);
+      await expect(guardianSelect).toHaveValue('');
+      await captureEvidence('Vista 5: estudiante sin vínculo seleccionado para la nueva relación', addRelationshipForm);
+
+      await relationshipSearch.fill('Estudiante E2E Fuera');
+      await expect(relationshipCount).toHaveText('0 estudiantes · 0 vínculos');
+      await expect(relationshipsSection.getByText('No hay relaciones que coincidan con la búsqueda.')).toBeVisible();
+      await captureEvidence('Vista 6: 0 vínculos actuales para el estudiante que se vinculará', relationshipsSection);
+
+      await guardianSelect.selectOption(guardianValue!);
+      await expect(studentSelect).toHaveValue(studentValue!);
+      await expect(guardianSelect).toHaveValue(guardianValue!);
+      await expect(page.getByRole('button', { name: 'Guardar vinculación' })).toBeEnabled();
+      await captureEvidence('Vista 7: generación de vínculo antes de presionar Guardar vinculación', addRelationshipForm);
+
+      await page.getByRole('button', { name: 'Guardar vinculación' }).click();
+
+      await expect(page.getByText('Vinculación guardada correctamente.')).toBeVisible();
+      expect(await isOutsideStudentLinkedToGuardian()).toBe(true);
+
+      await relationshipSearch.fill('Apoderado E2E');
+      await expect(relationshipCount).toHaveText('2 estudiantes · 2 vínculos');
+      const insideRelationship = relationshipsSection.getByRole('button', { name: /Estudiante E2E Dentro.*1 vínculo/ });
+      const outsideRelationship = relationshipsSection.getByRole('button', { name: /Estudiante E2E Fuera.*1 vínculo/ });
+      await insideRelationship.click();
+      await outsideRelationship.click();
+      await expect(insideRelationship).toHaveAttribute('aria-expanded', 'true');
+      await expect(outsideRelationship).toHaveAttribute('aria-expanded', 'true');
+      await expect(insideRelationship.locator('xpath=ancestor::article[1]')).toContainText('Apoderado E2E');
+      await expect(outsideRelationship.locator('xpath=ancestor::article[1]')).toContainText('Apoderado E2E');
+      await captureEvidence('Vista 8: 2 vínculos existentes con ambas relaciones desplegadas', relationshipsSection);
+    } finally {
+      await removeOutsideStudentGuardianLink();
+    }
+    expect(await isOutsideStudentLinkedToGuardian()).toBe(false);
   });
 
   for (const role of ['PORTERIA', 'DOCENTE', 'APODERADO', 'ESTUDIANTE'] as E2ERole[]) {
@@ -92,13 +155,16 @@ test.describe('Autenticación, roles y vinculación', () => {
     });
   }
 
-  test('PF-VIN-ADM-003 — Impedir que un administrador use la vinculación mediante código', async ({ page, captureEvidence }) => {
+  test('PF-VIN-ADM-003 — Impedir que el administrador se vincule personalmente a un estudiante mediante código', async ({ page, captureEvidence }) => {
     await login(page, 'ADMIN');
     await page.goto('/students/link');
     await expect(page).toHaveURL(/\/dashboard/);
-    await expect(
-      page.getByRole('status').filter({ hasText: 'Solo los apoderados pueden vincularse mediante código' }),
-    ).toBeVisible();
+    const accessDeniedToast = page
+      .getByRole('status')
+      .filter({ hasText: 'Solo los apoderados pueden vincularse mediante código' });
+    await expect(accessDeniedToast).toBeVisible();
+    await expect(accessDeniedToast).toHaveClass(/bg-rose-50/);
+    await expect(accessDeniedToast).toHaveClass(/text-rose-900/);
     await expect(page.getByRole('heading', { name: 'Vincular estudiante a cuenta' })).not.toBeVisible();
     await captureEvidence('Vinculación por código restringida al rol apoderado');
   });
@@ -108,17 +174,27 @@ test.describe('Autenticación, roles y vinculación', () => {
     expect(await isOutsideStudentLinkedToGuardian()).toBe(false);
     try {
       await login(page, 'APODERADO');
+      await page.getByRole('button', { name: 'Cerrar notificación' }).click();
       const linkedStudents = page.getByRole('heading', { name: 'Estudiantes vinculados' }).locator('xpath=ancestor::section[1]');
       await expect(linkedStudents.getByText('Estudiante E2E Fuera', { exact: true })).not.toBeVisible();
-      await captureEvidence('Estado inicial: estudiante y apoderado no vinculados', linkedStudents);
+      await expect(linkedStudents.getByText('Estudiante E2E Dentro', { exact: true })).toBeVisible();
+      await captureEvidence('Estado inicial: solo figura el estudiante previamente vinculado', linkedStudents);
 
       await page.goto('/students/link');
       await page.getByLabel('Código de vinculación').fill(codes.outside);
+      const linkStudentSection = page.getByRole('heading', { name: 'Vincular estudiante a cuenta' }).locator('xpath=ancestor::section[1]');
+      await captureEvidence('Acción: formulario preparado con un código válido', linkStudentSection);
+
       await page.getByRole('button', { name: 'Vincular estudiante' }).click();
-      await expect(page.getByText('Vinculación éxitosa')).toBeVisible();
+      const successToast = page.getByRole('status').filter({ hasText: 'Vinculación éxitosa' });
+      await expect(successToast).toBeVisible();
+      await captureEvidence('Confirmación: vinculación exitosa informada al apoderado');
+
       await expect(page.getByText('Estudiante E2E Fuera', { exact: true })).toBeVisible();
       expect(await isOutsideStudentLinkedToGuardian()).toBe(true);
-      await captureEvidence('Estado final: estudiante vinculado al apoderado', page.locator('article').filter({ hasText: 'Estudiante E2E Fuera' }).first());
+      await expect(linkedStudents.getByText('Estudiante E2E Dentro', { exact: true })).toBeVisible();
+      await expect(linkedStudents.getByText('Estudiante E2E Fuera', { exact: true })).toBeVisible();
+      await captureEvidence('Estado final: ambos estudiantes figuran en la cuenta del apoderado', linkedStudents);
     } finally {
       await removeOutsideStudentGuardianLink();
     }

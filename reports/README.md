@@ -1,6 +1,6 @@
 # Guía para ejecutar el plan de pruebas de VALIDGATE
 
-Esta guía explica cómo ejecutar la suite funcional end-to-end (E2E) de VALIDGATE y revisar las evidencias generadas en esta carpeta. Los casos automatizados se encuentran en `e2e/`, usan Playwright y corresponden al plan definido en [`docs/plan_pruebas_funcionales_validgate.md`](../docs/plan_pruebas_funcionales_validgate.md).
+Esta guía explica cómo ejecutar la suite funcional end-to-end (E2E) de VALIDGATE y revisar las evidencias generadas en esta carpeta. Los casos automatizados se encuentran en `e2e/`, usan Playwright y se relacionan con la estrategia de pruebas documentada en la tesis vigente.
 
 > **Importante:** ejecuta las pruebas únicamente contra un proyecto Supabase de testing. La preparación de datos crea usuarios y modifica registros identificados con el namespace E2E.
 
@@ -10,6 +10,7 @@ Esta guía explica cómo ejecutar la suite funcional end-to-end (E2E) de VALIDGA
 - Acceso a un proyecto Supabase exclusivo para pruebas.
 - Una clave administrativa `sb_secret_...` o una clave JWT legacy con rol `service_role`.
 - Credenciales ficticias para los roles `ADMIN`, `PORTERIA`, `DOCENTE`, `APODERADO` y `ESTUDIANTE`.
+- Migraciones aplicadas hasta `027_fix_confirm_guardian_pickup_request_id.sql` para completar retiros con PIN dual.
 - Chromium para Playwright.
 
 Desde la raíz del repositorio, instala las dependencias y el navegador si aún no están disponibles:
@@ -87,7 +88,23 @@ Luego ejecuta el plan automatizado completo:
 npm run test:e2e
 ```
 
+Para la preparación de la defensa existe además un smoke acotado que no ejecuta
+el preparador con Service Role ni restablece datos:
+
+```powershell
+npm run test:demo
+```
+
+Este comando presupone que la aplicación ya está iniciada. El flujo recomendado
+es `npm run demo`, ejecutado desde Git Bash.
+
+El smoke usa `DEMO_ADMIN_EMAIL` y `DEMO_ADMIN_PASSWORD`. Estas credenciales son
+independientes de las cuentas `E2E_*` que el preparador de la suite completa
+puede crear o restablecer.
+
 La suite se ejecuta en Chromium, con un trabajador y sin paralelismo. Antes de comenzar, el `globalSetup` valida la configuración y prepara datos aislados mediante `E2E_NAMESPACE`.
+
+Actualmente Playwright descubre 46 pruebas: 45 funcionales asociadas a 28 IDs y un smoke de demo. Los siete casos PF-RET-AUT generan evidencias visuales ordenadas de los estados iniciales, acciones, mensajes, validaciones y resultados finales.
 
 ### Modos alternativos
 
@@ -101,8 +118,11 @@ npm run test:e2e:ui
 # Ejecutar solamente un archivo
 npx playwright test e2e/auth-access.spec.ts
 
+# Ejecutar los siete casos de retirador temporal
+npx playwright test e2e/authorized-retriever-pickup.spec.ts --project=chromium
+
 # Ejecutar un caso por su ID o parte del título
-npx playwright test --grep "PF-RET-006"
+npx playwright test --grep "PF-RET-AUT-006"
 
 # Detenerse después del primer fallo
 npx playwright test --max-failures=1
@@ -115,6 +135,7 @@ Los archivos principales agrupan estos flujos:
 | `auth-access.spec.ts` | Autenticación, roles, permisos y vinculación |
 | `access-events.spec.ts` | Ingreso, salida regular y salida autónoma |
 | `guardian-pickup.spec.ts` | Retiro con validación de PIN dual |
+| `authorized-retriever-pickup.spec.ts` | Registro, autorización temporal, revocación y retiro mediante retirador autorizado |
 | `links-visibility.spec.ts` | Visibilidad de vínculos por rol |
 
 ## 4. Revisar los resultados
@@ -171,4 +192,4 @@ Un fallo puede deberse al producto, a datos E2E inconsistentes, a credenciales i
 - **La aplicación no responde:** revisa `PLAYWRIGHT_BASE_URL`; si es local, confirma que el puerto esté libre o inicia la aplicación manualmente y usa `E2E_START_LOCAL_SERVER=false`.
 - **El visor abre una corrida inesperada:** indica directamente la ruta de la corrida con `npx playwright show-report`.
 
-Para detalles sobre el aislamiento y la preparación segura de datos, consulta [`docs/E2E_TESTING.md`](../docs/E2E_TESTING.md).
+La suite completa debe continuar ejecutándose únicamente sobre un proyecto de testing. El smoke de demo no sustituye la evidencia funcional integral.

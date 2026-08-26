@@ -190,7 +190,7 @@ function getGuardianRelationDisplay(relationType?: string | null) {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ message?: string; toast?: string }>;
+  searchParams: Promise<{ message?: string; toast?: string; kind?: string }>;
 }) {
   const { user, profile } = await requireUser();
   const supabase = await createClient();
@@ -199,6 +199,8 @@ export default async function DashboardPage({
     params.toast === 'LOGIN_SUCCESS' ? 'Ingreso exitoso.' : params.message ?? null;
   const toastTone = params.toast === 'LOGIN_SUCCESS'
     ? 'success'
+    : params.kind === 'error'
+      ? 'danger'
     : toastMessage
       ? /no se pudo|no tienes|debes|rechaz|no encontramos|no hay|invalid|forbidden/i.test(toastMessage)
         ? 'danger'
@@ -627,7 +629,8 @@ export default async function DashboardPage({
                       Solicitud de autorización de salida
                     </h3>
                     <p className="mt-1 text-sm text-slate-500">
-                      Pide aprobación a tu apoderado. Al aprobarse, el retiro quedará registrado automáticamente.
+                      Pide autorización a tu apoderado. Si acepta, ambos deberán presentar sus PIN en portería
+                      antes de que se registre el retiro.
                     </p>
                     <p className="mt-2 text-sm text-slate-500">
                       Estado actual:{' '}
@@ -829,6 +832,12 @@ export default async function DashboardPage({
                             Salida manual por contingencia solicitada desde Portería.
                           </p>
                         ) : null}
+                        {request.requestType === 'EXIT_ALONE' && !request.canLeaveAlone ? (
+                          <p className="mt-3 rounded-xl border border-amber-300 bg-amber-100 px-3 py-2 text-sm font-medium text-amber-950">
+                            Este estudiante no tiene permiso para salir solo. La salida directa no puede aprobarse;
+                            debes iniciar un retiro con PIN dual y completar la validación presencial en portería.
+                          </p>
+                        ) : null}
                         {request.reason ? (
                           <p className="mt-2 rounded-xl bg-white px-3 py-2 text-sm text-slate-700">
                             <span className="font-medium">Motivo:</span> {request.reason}
@@ -843,14 +852,25 @@ export default async function DashboardPage({
                         </p>
                         <form action={respondToAuthorizationRequestFromForm} className="mt-3 flex flex-col gap-2 sm:flex-row">
                           <input type="hidden" name="request_id" value={request.id} />
-                          <PendingSubmitButton
-                            name="decision"
-                            value="APPROVED"
-                            pendingLabel="Procesando..."
-                            className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-emerald-300"
-                          >
-                            Aprobar
-                          </PendingSubmitButton>
+                          {request.requestType === 'EXIT_ALONE' && !request.canLeaveAlone ? (
+                            <PendingSubmitButton
+                              name="decision"
+                              value="SUPERVISED_PICKUP"
+                              pendingLabel="Iniciando retiro..."
+                              className="rounded-xl bg-sky-700 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-800 disabled:cursor-not-allowed disabled:bg-sky-300"
+                            >
+                              Iniciar retiro con PIN dual
+                            </PendingSubmitButton>
+                          ) : (
+                            <PendingSubmitButton
+                              name="decision"
+                              value="APPROVED"
+                              pendingLabel="Procesando..."
+                              className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                            >
+                              Aprobar
+                            </PendingSubmitButton>
+                          )}
                           <PendingSubmitButton
                             name="decision"
                             value="REJECTED"

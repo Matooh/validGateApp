@@ -1,6 +1,10 @@
 # Snapshot técnico y funcional de VALIDGATE
 
-Fecha de inspección: 2026-07-19
+Fecha de inspección original: 2026-07-19
+
+Actualización operativa: 2026-08-22. La arquitectura de dominio de este snapshot
+se conserva como referencia histórica; para ejecución y pruebas prevalecen el
+código actual, `README.md`, `docs/DEMO_LOCAL.md` y `reports/README.md`.
 Base de evidencia: repositorio local; no se consultó ni alteró una instancia de Supabase.
 Regla de lectura: código, migraciones y configuración prevalecen sobre documentación.
 
@@ -9,16 +13,15 @@ Regla de lectura: código, migraciones y configuración prevalecen sobre documen
 VALIDGATE es un MVP web para autenticar usuarios por rol, vincular apoderados con estudiantes, consultar estado/horario/trazabilidad y registrar ingresos, salidas y retiros.
 El stack bloqueado es Next.js 16.2.6, React 19.2.5, TypeScript 6.0.2, Tailwind CSS 4.2.2 y Supabase JS 2.102.1.
 La solución es un monolito modular serverless: App Router, Server Components, componentes cliente, Server Actions, un Route Handler y PostgreSQL/Supabase.
-Existen cinco roles: `ADMIN`, `PORTERIA`, `DOCENTE`, `APODERADO` y `ESTUDIANTE`.
+Existen seis roles: `ADMIN`, `PORTERIA`, `DOCENTE`, `APODERADO`, `ESTUDIANTE` y `RETIRADOR_AUTORIZADO`.
 Hay flujos operativos de evento manual, QR opaco temporal y de uso único, solicitud/aprobación de salida y salida autónoma.
-Las 15 tablas y reglas de seguridad se definen en 15 migraciones; la existencia en una base desplegada es **No verificado en el repositorio**.
+El esquema y las reglas de seguridad evolucionan mediante 27 migraciones; la existencia en una base desplegada debe comprobarse en cada ambiente.
 RLS, triggers y RPC concentran reglas críticas, incluida la serialización de confirmaciones QR mediante bloqueos `FOR UPDATE`.
-El avance es funcional pero parcial: no hay CRUD completo de estudiantes, cursos, usuarios ni personas autorizadas.
-PIN, MFA, biometría, notificaciones externas y lector de cámara están documentados o presentados en UI, pero no son flujos implementados.
-La entidad `authorized_people` existe, pero el retiro actual por QR no valida la identidad de esa persona.
+El avance es funcional pero parcial: no hay CRUD completo de estudiantes, cursos ni usuarios.
+El PIN dual y los retiradores temporales están implementados; MFA, biometría y notificaciones externas continúan fuera del flujo operativo.
 La aprobación de solicitud y creación de autorización usa dos escrituras no transaccionales.
-No hay suite automatizada ejecutable; solo un plan Gherkin documental de login.
-Vercel está documentado como destino, sin archivo de infraestructura ni evidencia de despliegue.
+Existe una suite Playwright ejecutable y un smoke de demo no destructivo.
+La validación académica usa una build Next.js local con Supabase Cloud; Vercel se conserva como evolución futura.
 
 ## 2. Evidencia inspeccionada
 
@@ -30,12 +33,12 @@ Vercel está documentado como destino, sin archivo de infraestructura ni evidenc
 | Aplicación | `src/app/` | Encontrado | 8 páginas/rutas principales, 5 archivos de Server Actions y un Route Handler. |
 | UI | `src/components/` | Encontrado | Componentes cliente y de presentación. |
 | Seguridad/apoyo | `src/lib/`, `src/middleware.ts` | Encontrado | Sesión, permisos, clientes Supabase, mensajes y validadores RUT/teléfono. |
-| Base de datos | `supabase/migrations/001_init.sql` a `015_student_self_exit.sql` | Encontrado | 15 tablas declaradas, 10 enums, 5 triggers y RPC. |
+| Base de datos | `supabase/migrations/001_init.sql` a `027_fix_confirm_guardian_pickup_request_id.sql` | Encontrado | Esquema, RLS y RPC para accesos, PIN dual y retiradores temporales. |
 | Tipos generados de Supabase | — | No encontrado | No hay `database.types.ts` ni equivalente. |
-| Tests ejecutables | `tests/`, `e2e/`, `playwright.config.*` | No encontrado | No hay Playwright instalado ni configuración. |
-| Plan de pruebas | `docs/test-plan.feature` | Parcial | Dos escenarios de login, sin step definitions ni runner. |
+| Tests ejecutables | `e2e/`, `playwright.config.ts`, `playwright.demo.config.ts` | Encontrado | Suite funcional con preparación aislada y smoke de demo sin Service Role. |
+| Plan de pruebas | `reports/plan_pruebas_funcionales_validgate.md` | Actualizado | 62 escenarios; 28 IDs poseen alguna automatización Playwright. |
 | Documentación vigente | `README.md`, `docs/validgate_sistema_actual.md` | Encontrado | Útil, pero contiene afirmaciones más amplias que el código. |
-| Despliegue | `docs/CONFIGURACION_LOCAL.md` | Parcial | Procedimiento manual para Vercel; despliegue real no verificable. |
+| Despliegue | `docs/DEMO_LOCAL.md`, `scripts/validgate-demo.sh` | Verificado localmente | Build de producción local y Supabase Cloud; Vercel es una alternativa futura. |
 | CSV de esquema | — | No encontrado | No fue posible comparar CSV con migraciones. |
 
 ## 3. Estructura relevante del repositorio
@@ -65,10 +68,10 @@ Vercel está documentado como destino, sin archivo de infraestructura ni evidenc
 │   │   ├── permissions.ts
 │   │   └── types.ts
 │   └── middleware.ts
-├── supabase/migrations/001_init.sql ... 015_student_self_exit.sql
+├── supabase/migrations/001_init.sql ... 027_fix_confirm_guardian_pickup_request_id.sql
 ├── docs/
 │   ├── CONFIGURACION_LOCAL.md
-│   ├── test-plan.feature
+│   ├── AUTHORIZED_RETRIEVER_FLOW.md
 │   ├── validgate_sistema_actual.md
 │   └── validgate-context/*.md
 ├── package.json
@@ -92,8 +95,8 @@ Vercel está documentado como destino, sin archivo de infraestructura ni evidenc
 | html5-qrcode | 2.3.8 | Dependencia prevista para cámara | `package-lock.json`; sin importaciones en `src/` |
 | react-qr-code | 2.0.21 | Render de QR | `authentication-qr-card.tsx` |
 | React Hook Form | 7.76.0 | Dependencia prevista | Sin uso verificado en `src/` |
-| Vercel | Servicio, sin versión | Destino documentado | `CONFIGURACION_LOCAL.md`; despliegue no verificado |
-| Playwright | — | Pruebas E2E | No encontrado |
+| Vercel | Servicio, sin versión | Evolución productiva futura | No requerido para la validación académica |
+| Playwright | 1.62.1 | Pruebas E2E y smoke de demo | Encontrado y ejecutable |
 
 ## 5. Arquitectura general detectada
 
@@ -125,7 +128,7 @@ Actor humano
 | Docente | enum/permisos/RLS | Dashboard, estudiantes/cursos/asistencia | Sin módulo propio; `requireStaff` lo admite, pero `view_guard_module` lo bloquea | Rol autenticado, parcial |
 | Apoderado | RLS, dashboard, acciones de autorización | Vincular/desvincular, ver eventos, generar QR, responder solicitudes | Solo vínculos propios | Rol autenticado, implementado |
 | Estudiante | `student_profiles`, dashboard, RPC salida | Ver estado/horario/vínculos, QR, solicitar/confirmar salida | Un perfil por estudiante; no autoriza su propio retiro | Rol autenticado, implementado |
-| Persona autorizada | `authorized_people`, `authorizations` | Se modela como retirador | No inicia sesión ni existe UI propia | Entidad/actor físico, no usuario |
+| Retirador autorizado | `profiles`, `guardian_students`, permisos y dashboard | Recibe invitación, consulta estudiantes asignados, solicita retiro y presenta PIN | Solo vínculos vigentes; sin contingencia manual | Rol autenticado, implementado |
 | Supabase | clientes y migraciones | Auth, persistencia, RPC/RLS | Servicio externo | Servicio externo |
 
 ## 7. Requerimientos funcionales observables
@@ -137,13 +140,13 @@ Actor humano
 | RF-OBS-03 | Gestión de estudiantes | `students/[id]`, `updateStudentAction` | Consulta/edición parcial | Parcialmente implementada |
 | RF-OBS-04 | Gestión de cursos | `guard`, `students/[id]` | Solo consulta | Parcialmente implementada |
 | RF-OBS-05 | Vinculación estudiante-apoderado | `linkStudentByCodeAction`, `guardian_students` | RPC `link_student_by_code` es invocada | Parcialmente implementada; definición RPC no está en migraciones |
-| RF-OBS-06 | Personas autorizadas | `authorized_people`, `authorizations` | Solo esquema/RLS select | Solo documentada/modelada |
+| RF-OBS-06 | Retiradores autorizados | `links`, `authorized-retrievers.ts`, `guardian_students` | Alta/reutilización, RUT, vigencia y revocación | Implementada |
 | RF-OBS-07 | Ingreso/salida manual | `recordAccessEventAction` | Inserción auditable y trigger de estado | Implementada |
-| RF-OBS-08 | Retiro | `QrCredentialValidator`, RPC QR | Mapea `RETIRO` a `SALIDA/RETIRO_AUTORIZADO` | Parcialmente implementada |
+| RF-OBS-08 | Retiro | dashboard, cola de portería y RPC de retiro | PIN dual, revocación, confirmación y evento `RETIRO_AUTORIZADO` | Implementada |
 | RF-OBS-09 | Retiro anticipado | documentos/reason | No hay caso/UI específico | Solo documentada |
 | RF-OBS-10 | Salida autónoma | acciones + `015_student_self_exit.sql` | RPC atómica con QR vigente | Implementada |
 | RF-OBS-11 | QR temporal/opaco/uso único | acciones + tablas/RPC | UUID, expiración, usado/revocado | Implementada |
-| RF-OBS-12 | PIN | UI y enum | Se puede etiquetar manualmente, sin credencial/validación PIN | Futura |
+| RF-OBS-12 | PIN | `guardian_pickup_pins` y RPC de validación | PIN dual, expiración, intentos y consumo único | Implementada |
 | RF-OBS-13 | Validación manual/contingencia | `access.ts`, `013_...sql` | La acción concatena notas, pero no llena las columnas de contingencia | Parcialmente implementada |
 | RF-OBS-14 | Historial/trazabilidad | dashboards/guard, RLS | Últimos 8/10 eventos, sin filtros avanzados | Parcialmente implementada |
 | RF-OBS-15 | Notificaciones | toast y cards | Solo feedback in-app; sin servicio/canal externo | Parcialmente implementada |
@@ -182,9 +185,11 @@ Actor humano
 - Solicitar autorización de salida — asociación; incluye Verificar ingreso activo y apoderado vinculado.
 - Registrar salida autónoma — asociación; incluye Verificar permiso, estado y QR vigente.
 
-### Persona autorizada
+### Retirador autorizado
 
-- Presentarse para retiro es interacción física con porterías; la persona no usa la app. La validación de su identidad está **No verificado en el repositorio**.
+- Consultar exclusivamente estudiantes con autorización temporal vigente.
+- Solicitar el retiro y recibir su PIN después de la aceptación del estudiante.
+- Presentar el PIN en portería; no dispone de validación manual de contingencia.
 
 ## 9. Modelo de dominio para diagrama de clases
 
@@ -247,7 +252,7 @@ Triggers: creación automática de perfil; `updated_at` en perfiles/estudiantes/
 | Adaptadores Supabase | Clientes browser/server | Data API/Auth | `lib/supabase/` |
 | PostgreSQL/RLS | Persistencia y autorización final | Tablas, policies, triggers | `supabase/migrations/` |
 | Supabase Auth | Identidad/sesiones | Servicio externo | clientes y `auth.users` FK |
-| Playwright | Pruebas E2E | No existe | **No verificado en el repositorio** |
+| Playwright | Pruebas E2E | Suite funcional y smoke de demo | `e2e/`, configuraciones Playwright |
 
 ## 12. Flujos técnicos para secuencia
 
@@ -269,14 +274,14 @@ Alternativa QR: `QrCredentialValidator` → `validateStudentQrCredential` → `c
 
 | Orden | Participante | Acción o mensaje | Archivo / función | Resultado |
 |---:|---|---|---|---|
-| 1 | Portería | Pega/escanea payload | `QrCredentialValidator` | Validación solicitada |
-| 2 | Action | Valida rol, formato, QR, institución, vigencia | `validateStudentQrCredential` | Datos mínimos o rechazo |
-| 3 | Action | Busca permiso temporal si no sale solo | `getValidExitAuthorizationForStudent` | Permiso vigente/no |
-| 4 | Portería | Confirma `RETIRO` | componente | RPC |
-| 5 | RPC | Bloquea QR/estudiante/autorización y verifica estado | `confirm_student_qr_access_event` en `012` | rechazo o consumo |
-| 6 | RPC | Inserta `SALIDA`, `RETIRO_AUTORIZADO`, `QR`, `APROBADO` | misma RPC | Trigger deja fuera |
+| 1 | Apoderado | Registra o reutiliza retirador y asigna estudiante/vigencia | `/links`, `inviteAuthorizedRetiradorAction` | Vínculo temporal vigente |
+| 2 | Retirador | Solicita el retiro | dashboard, `create_guardian_pickup_request` | Notificación al estudiante |
+| 3 | Estudiante | Acepta la solicitud | dashboard, `respond_guardian_pickup_request` | Dos PIN diferentes |
+| 4 | Portería | Valida PIN del retirador y estudiante | `/guard`, `validate_guardian_pickup_pin` | Ambos validados |
+| 5 | Portería | Confirma el retiro efectivo | `confirm_guardian_pickup` | Evento `SALIDA/RETIRO_AUTORIZADO` |
+| 6 | Apoderado | Puede revocar antes de completar | `revoke_authorized_retirador_link` | Retiro cancelado y PIN invalidados |
 
-Alternativas verificadas: QR no encontrado/vencido/usado/revocado; fuera del recinto; autorización temporal ausente; evento inválido; rol/institución prohibidos; concurrencia de consumo. “Estudiante no encontrado” se expresa como `QR_NOT_FOUND`. Horario no permitido y autorización excepcional: **No verificado en el repositorio**. La identidad/vigencia de `authorized_people` y la FK `access_events.authorized_person_id` no participan en este flujo; por tanto, “retiro por persona autorizada” está parcialmente implementado. Los rechazos QR no se insertan como `access_events`.
+Alternativas verificadas por PF-RET-AUT-001 a 007: cuenta nueva o preexistente, vínculo revocado, cancelación inmediata, segundo consumo del PIN y estudiante fuera del alcance autorizado.
 
 ### 12.3 Salida autónoma
 
@@ -343,11 +348,11 @@ La separación es funcional, no estrictamente por capas. Hay buen aislamiento de
 |---|---|---|---|
 | Navegador admin/apoderado/estudiante | UI React | HTTPS a Next/Supabase mediante app | UI responsiva por rol |
 | Dispositivo de porterías | UI guard | Navegador; payload pegado/escaneado | `guard`, sin API de cámara usada |
-| Servidor Next.js | Build de app | Runtime serverless propuesto | Next; Vercel documentado |
+| Servidor Next.js | Build de app | Node.js local en el PC de demostración | Build y arranque verificados |
 | Supabase Auth | Identidad | HTTPS | clientes Auth |
 | Supabase PostgreSQL/Data API | Datos/RPC/RLS | HTTPS/PostgREST/RPC | migraciones/clientes |
 | Supabase Storage | — | — | **No verificado en el repositorio** |
-| Vercel producción | App Next | Deploy desde GitHub propuesto | Solo documentación; no verificado |
+| Vercel producción | App Next | Evolución productiva futura | No requerido para la defensa |
 | Local | `next dev` | Node + variables env | scripts/docs |
 | Pruebas | — | — | Sin entorno automatizado |
 
@@ -390,19 +395,19 @@ Solicitud/autorización guarda solicitante, apoderado, estado, razón, respuesta
 
 | Tipo | Herramienta | Escenario | Archivo | Estado |
 |---|---|---|---|---|
-| Especificación BDD | Gherkin | Login exitoso por rol/fallido | `docs/test-plan.feature` | Documental |
-| E2E | Playwright | — | — | No encontrada |
+| Especificación funcional | Gherkin | RF01–RF14, incluidos PF-RET-AUT-001 a 007 | `reports/plan_pruebas_funcionales_validgate.md` | Actualizada |
+| E2E | Playwright | Autenticación, roles, vínculos, eventos, retiro y retirador temporal | `e2e/*.spec.ts` | 45 pruebas funcionales |
+| Smoke de demo | Playwright | Disponibilidad, ruta protegida y login | `e2e/demo-smoke.spec.ts` | Encontrada |
 | Unitarias | — | — | — | No encontradas |
 | Integración/RPC/RLS | — | — | — | No encontradas |
 | Fixtures/seeds | SQL | Datos demo | `002_seed.sql`, `003_seed_multi_institution.sql` | Seeds, no tests |
 
-Sin evidencia formal: aislamiento RLS, doble consumo QR, aprobación concurrente, ingreso duplicado manual, retiro autorizado, auto-salida, expiraciones, roles y regresiones de triggers.
+Con evidencia Playwright: roles, restricciones de acceso, ingreso duplicado, salida autónoma, retiro con PIN dual, alta/reutilización/revocación de retiradores y bloqueo del segundo consumo de PIN. Continúan sin cobertura formal completa el aislamiento RLS directo, aprobación concurrente, expiraciones y regresiones de triggers.
 
 ## 21. Brechas detectadas
 
 | Severidad | Brecha |
 |---|---|
-| Alta | Retiro por persona autorizada no valida `authorized_people/authorizations` ni registra `authorized_person_id`. |
 | Alta | `link_student_by_code` es llamada por la app, pero su definición SQL no está en el repositorio. |
 | Alta | Aprobación y creación de permiso temporal no son transaccionales; puede quedar solicitud aprobada sin autorización. |
 | Alta | No hay pruebas automatizadas de RLS/RPC/flujos críticos. |
@@ -416,7 +421,7 @@ Sin evidencia formal: aislamiento RLS, doble consumo QR, aprobación concurrente
 | Media | Mensajes y validaciones no están completamente centralizados; Zod instalado sin uso. |
 | Media | Salida aprobada por apoderado requiere porterías; no es auto-salida directa. |
 | Baja | Badge NEW y remember-me dependen de `localStorage`. |
-| Baja | Vercel/producción y cámara real están documentados, no verificados. |
+| Baja | Vercel productivo y cámara real permanecen como evoluciones no verificadas. |
 
 ## 22. Suficiencia para generar diagramas
 
@@ -429,7 +434,7 @@ Sin evidencia formal: aislamiento RLS, doble consumo QR, aprobación concurrente
 | Secuencia ingreso | Sí | Concurrencia manual deseada | access action/trigger |
 | Secuencia retiro | Parcial | Identidad de autorizado | QR RPC/tablas |
 | Secuencia salida autónoma | Sí para permiso directo | Semántica de aprobación sin porterías | action/RPC |
-| Despliegue | Parcial | Evidencia de Vercel/regiones/red | docs/config |
+| Despliegue | Sí para validación académica local | Regiones/alta disponibilidad de una evolución productiva | guía de demo y script |
 | Contexto | Sí | Integraciones futuras | README/docs |
 | Base de datos | Sí, declarativa | Estado desplegado | migrations |
 | Arquitectura general | Sí | Métricas runtime | todo lo anterior |
@@ -450,12 +455,12 @@ Sin evidencia formal: aislamiento RLS, doble consumo QR, aprobación concurrente
 - Clases de dominio (lógica).
 - Actividad y secuencias (procesos).
 - Componentes (desarrollo).
-- Despliegue (física), rotulando Vercel como propuesta no verificada.
+- Despliegue (física), mostrando PC local + Supabase Cloud y Vercel como evolución futura.
 
 ### Complementarios
 
 - Diagrama de contexto.
-- ER de las 15 tablas.
+- ER del esquema vigente definido por las migraciones.
 - Arquitectura general cliente–Next–Supabase.
 - Ishikawa académico ya documentado, separado de UML.
 
@@ -463,8 +468,8 @@ Sin evidencia formal: aislamiento RLS, doble consumo QR, aprobación concurrente
 
 - `package.json`, `package-lock.json`, `next.config.ts`, `tsconfig.json`, `postcss.config.mjs`, `.env.example`, `README.md`.
 - Todo `src/app/**/*.ts(x)`, `src/components/**/*.tsx`, `src/lib/**/*.ts` y `src/middleware.ts` (40 rutas TypeScript).
-- `supabase/migrations/001_init.sql` a `supabase/migrations/015_student_self_exit.sql`.
-- `docs/CONFIGURACION_LOCAL.md`, `docs/test-plan.feature`, `docs/validgate_sistema_actual.md`.
+- `supabase/migrations/001_init.sql` a `supabase/migrations/027_fix_confirm_guardian_pickup_request_id.sql`.
+- `reports/plan_pruebas_funcionales_validgate.md`, `reports/README.md`, `docs/AUTHORIZED_RETRIEVER_FLOW.md`, `docs/validgate_sistema_actual.md`.
 - `docs/validgate-context/validgate_especificacion_mvp_autenticacion_control_acceso.md`.
 - `docs/validgate-context/validgate_flujo_mvp.md`.
 - `docs/validgate-context/validgate_reporte_arquitectura_funcional_tecnica.md`.

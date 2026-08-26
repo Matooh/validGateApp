@@ -18,7 +18,7 @@ import { DEFAULT_ACCESS_POLICY } from '@/lib/types';
 export default async function GuardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ message?: string }>;
+  searchParams: Promise<{ message?: string; toast?: string }>;
 }) {
   const { user, profile } = await requireStaff();
   const supabase = await createClient();
@@ -92,7 +92,7 @@ export default async function GuardPage({
   return (
     <main className="min-h-screen bg-slate-50">
       <DashboardAutoRefresh expiresAt={pickupRequests.map((request) => request.expiresAt)} />
-      <FeedbackToast message={toastMessage} tone={toastTone} title="Portería" />
+      <FeedbackToast key={params.toast ?? toastMessage} message={toastMessage} tone={toastTone} title="Portería" />
       <AppNav
         role={profile?.role}
         displayName={

@@ -29,6 +29,170 @@ function codes() {
   };
 }
 
+function secondaryGuardianEmail() {
+  const namespace = getE2EConfig().namespace.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 24);
+  return `apoderado.secundario.${namespace}@example.invalid`;
+}
+
+function retrieverIdentity(kind: 'existing' | 'new') {
+  const namespace = getE2EConfig().namespace.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20);
+  const seed = `${namespace}-${kind}`;
+  let hash = 0;
+  for (const character of seed) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  const body = 10_000_000 + (hash % 9_000_000);
+  let sum = 0;
+  let multiplier = 2;
+  for (const digit of String(body).split('').reverse()) {
+    sum += Number(digit) * multiplier;
+    multiplier = multiplier === 7 ? 2 : multiplier + 1;
+  }
+  const calculated = 11 - (sum % 11);
+  const verifier = calculated === 11 ? '0' : calculated === 10 ? 'K' : String(calculated);
+  return {
+    email: `retirador.${kind}.${namespace}@example.invalid`,
+    password: 'ValidGate-E2E-Retirador-2026!',
+    rut: `${body}-${verifier}`,
+    firstName: kind === 'new' ? 'Retirador Nuevo' : 'Retirador',
+    lastName: 'E2E',
+  };
+}
+
+export function retrieverFixture(kind: 'existing' | 'new' = 'existing') {
+  return retrieverIdentity(kind);
+}
+
+export async function removeRetrieverFixture(kind: 'existing' | 'new') {
+  const db = client();
+  const identity = retrieverIdentity(kind);
+  const user = await findAuthUser(db, identity.email);
+  if (!user) return;
+  await assertNoError(`No se pudieron limpiar vínculos del retirador ${kind}`,
+    (await db.from('guardian_students').delete().eq('guardian_profile_id', user.id)).error);
+  const { error } = await db.auth.admin.deleteUser(user.id);
+  await assertNoError(`No se pudo eliminar el usuario retirador ${kind}`, error);
+}
+
+export async function ensureExistingRetriever(options: { authorize?: boolean } = {}) {
+  const { db, institutionId, students } = await resolveE2EData();
+  const identity = retrieverIdentity('existing');
+  let user = await findAuthUser(db, identity.email);
+  if (!user) {
+    const { data, error } = await db.auth.admin.createUser({
+      email: identity.email,
+      password: identity.password,
+      email_confirm: true,
+      user_metadata: { first_name: identity.firstName, last_name: identity.lastName },
+      app_metadata: { validgate_e2e: true, e2e_namespace: getE2EConfig().namespace },
+    });
+    await assertNoError('No se pudo crear el retirador E2E', error);
+    user = requireData('No se pudo crear el retirador E2E', data.user);
+  }
+  await assertNoError('No se pudo preparar el perfil del retirador E2E',
+    (await db.from('profiles').upsert({
+      id: user.id,
+      institution_id: institutionId,
+      first_name: identity.firstName,
+      last_name: identity.lastName,
+      email: identity.email,
+      rut: identity.rut,
+      role: 'RETIRADOR_AUTORIZADO',
+    })).error);
+  await assertNoError('No se pudieron limpiar autorizaciones anteriores del retirador E2E',
+    (await db.from('guardian_students').delete().eq('guardian_profile_id', user.id)).error);
+  let relationId: number | null = null;
+  if (options.authorize) {
+    const guardian = credentialsFor('APODERADO');
+    const { data: guardianProfile, error: guardianError } = await db.from('profiles').select('id').eq('email', guardian.email).single();
+    await assertNoError('No se pudo resolver el apoderado autorizante E2E', guardianError);
+    const { data: relation, error } = await db.from('guardian_students').insert({
+      guardian_profile_id: user.id,
+      student_id: students.inside,
+      relation_type: 'RETIRADOR_AUTORIZADO',
+      authorized_by_profile_id: requireData('No se resolvió el apoderado E2E', guardianProfile).id,
+      valid_from: new Date(Date.now() - 60_000).toISOString(),
+      valid_until: new Date(Date.now() + 60 * 60_000).toISOString(),
+    }).select('id').single();
+    await assertNoError('No se pudo autorizar el retirador E2E', error);
+    relationId = Number(requireData('No se creó la autorización E2E', relation).id);
+  }
+  return { ...identity, profileId: user.id, relationId, studentId: students.inside };
+}
+
+export async function activateNewRetrieverAccount() {
+  const db = client();
+  const identity = retrieverIdentity('new');
+  const user = await findAuthUser(db, identity.email);
+  if (!user) throw new Error('El formulario no creó la cuenta del retirador nuevo.');
+  await assertNoError('No se pudo activar la cuenta nueva del retirador E2E',
+    (await db.auth.admin.updateUserById(user.id, { password: identity.password, email_confirm: true })).error);
+  const { data: profile, error } = await db.from('profiles')
+    .select('id, rut, role').eq('id', user.id).single();
+  await assertNoError('No se pudo comprobar el perfil del retirador nuevo', error);
+  const resolved = requireData('No existe el perfil del retirador nuevo', profile);
+  if (resolved.rut !== identity.rut || resolved.role !== 'RETIRADOR_AUTORIZADO') {
+    throw new Error('El perfil nuevo no conserva el RUT y rol esperados.');
+  }
+  return { ...identity, profileId: user.id };
+}
+
+export async function pickupStateForRetriever(profileId: string) {
+  const { db, students } = await resolveE2EData();
+  const { data: requests, error } = await db.from('guardian_pickup_requests')
+    .select('id, status, authorization_link_id').eq('guardian_profile_id', profileId)
+    .eq('student_id', students.inside).order('created_at', { ascending: false }).limit(1);
+  await assertNoError('No se pudo consultar el retiro del retirador E2E', error);
+  const request = requests?.[0] ?? null;
+  if (!request) return null;
+  const { count, error: eventError } = await db.from('access_events').select('id', { count: 'exact', head: true })
+    .eq('student_id', students.inside).eq('event_type', 'SALIDA').eq('exit_kind', 'RETIRO_AUTORIZADO');
+  await assertNoError('No se pudieron contar los eventos de retiro E2E', eventError);
+  return { ...request, accessEventCount: count ?? 0 };
+}
+
+export async function revokeRetrieverRelationDirect(relationId: number) {
+  const db = client();
+  await assertNoError('No se pudo revocar directamente la autorización E2E',
+    (await db.from('guardian_students').update({ revoked_at: new Date().toISOString() }).eq('id', relationId)).error);
+}
+
+export async function validatePickupPinAsPorteria(
+  requestId: string,
+  actorType: 'GUARDIAN' | 'STUDENT',
+  pin: string,
+) {
+  const config = getE2EConfig();
+  const porteria = credentialsFor('PORTERIA');
+  const db = createClient(config.supabaseUrl, config.serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { error: loginError } = await db.auth.signInWithPassword(porteria);
+  await assertNoError('No se pudo autenticar portería para validar el PIN E2E', loginError);
+  const { data, error } = await db.rpc('validate_guardian_pickup_pin', {
+    p_request_id: requestId,
+    p_actor_type: actorType,
+    p_pin: pin,
+  });
+  await assertNoError('No se pudo ejecutar la validación de PIN E2E', error);
+  return (Array.isArray(data) ? data[0] : data) as { request_id: string; message_code: string };
+}
+
+export async function requestPickupAsRetriever(profileId: string, password: string, studentId: number) {
+  const config = getE2EConfig();
+  const db = createClient(config.supabaseUrl, config.serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data: profile, error: profileError } = await client().from('profiles').select('email').eq('id', profileId).single();
+  await assertNoError('No se pudo resolver el correo del retirador E2E', profileError);
+  const { error: loginError } = await db.auth.signInWithPassword({
+    email: requireData('No existe el perfil del retirador E2E', profile).email,
+    password,
+  });
+  await assertNoError('No se pudo autenticar el retirador E2E', loginError);
+  const { data, error } = await db.rpc('create_guardian_pickup_request', { p_student_id: studentId });
+  await assertNoError('No se pudo solicitar el retiro E2E', error);
+  return (Array.isArray(data) ? data[0] : data) as { request_id: string | null; message_code: string };
+}
+
 async function assertNoError(label: string, error: { message: string } | null) {
   if (error) throw new Error(`${label}: ${error.message}`);
 }
@@ -337,6 +501,60 @@ export async function removeOutsideStudentGuardianLink() {
   await assertNoError('No se pudo eliminar la vinculaciÃ³n temporal E2E',
     (await db.from('guardian_students').delete()
       .eq('guardian_profile_id', resolvedGuardian.id).eq('student_id', students.outside)).error);
+}
+
+export async function addSecondaryGuardianRelationshipToInside() {
+  const { db, institutionId, students } = await resolveE2EData();
+  const email = secondaryGuardianEmail();
+  let user = await findAuthUser(db, email);
+
+  if (!user) {
+    const { data, error } = await db.auth.admin.createUser({
+      email,
+      password: 'ValidGate-E2E-Secondary-2026!',
+      email_confirm: true,
+      user_metadata: { first_name: 'Apoderado', last_name: 'Secundario E2E' },
+      app_metadata: { validgate_e2e: true, e2e_namespace: getE2EConfig().namespace },
+    });
+    await assertNoError('No se pudo crear el apoderado secundario E2E', error);
+    user = requireData('No se pudo crear el apoderado secundario E2E', data.user);
+  }
+
+  await assertNoError('No se pudo preparar el perfil del apoderado secundario E2E',
+    (await db.from('profiles').upsert({
+      id: user.id,
+      institution_id: institutionId,
+      first_name: 'Apoderado',
+      last_name: 'Secundario E2E',
+      email,
+      role: 'APODERADO',
+    })).error);
+  await assertNoError('No se pudo limpiar el vínculo secundario E2E anterior',
+    (await db.from('guardian_students').delete()
+      .eq('guardian_profile_id', user.id).in('student_id', [students.inside, students.outside])).error);
+  const { data: relationship, error } = await db.from('guardian_students').insert({
+    guardian_profile_id: user.id,
+    student_id: students.inside,
+    relation_type: 'APODERADO',
+  }).select('id').single();
+  await assertNoError('No se pudo crear el vínculo secundario E2E', error);
+
+  return {
+    guardianId: user.id,
+    guardianName: 'Apoderado Secundario E2E',
+    guardianEmail: email,
+    relationshipId: Number(requireData('No se pudo crear el vínculo secundario E2E', relationship).id),
+  };
+}
+
+export async function removeSecondaryGuardianRelationships() {
+  const { db, students } = await resolveE2EData();
+  const { data: profile, error } = await db.from('profiles').select('id').eq('email', secondaryGuardianEmail()).maybeSingle();
+  await assertNoError('No se pudo resolver el apoderado secundario E2E', error);
+  if (!profile) return;
+  await assertNoError('No se pudieron limpiar los vínculos secundarios E2E',
+    (await db.from('guardian_students').delete()
+      .eq('guardian_profile_id', profile.id).in('student_id', [students.inside, students.outside])).error);
 }
 
 export async function setExitPolicy(requiresAuthenticator: boolean, exclusive: boolean) {

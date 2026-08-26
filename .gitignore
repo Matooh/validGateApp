@@ -10,6 +10,8 @@ tsconfig.tsbuildinfo
 # Playwright: reportes y evidencias generadas
 reports/*
 !reports/README.md
+!reports/plan_pruebas_funcionales_validgate.md
+!reports/GUIA_PARA_EJECUTAR_E2E_TESTING.md
 test-results/
 playwright-report/
 blob-report/
@@ -26,8 +28,16 @@ docs/**/~WRL*.tmp
 docs/prompts
 docs/CONFIGURACION_LOCAL.md
 
-# Herramientas locales para elaboración de la tesis
+# Herramientas locales para elaboración de la tesis. Los dos scripts operativos
+# de demo sí forman parte del MVP y se versionan explícitamente.
 scripts/
+!scripts/
+scripts/*
+!scripts/validgate-demo.sh
+!scripts/validgate-health.mjs
 
 # Artefactos generados de la tesis
 VALIDGATE_Capitulo_IV_*
+
+# Salida temporal del preflight de defensa
+.demo-logs/

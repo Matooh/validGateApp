@@ -59,6 +59,18 @@ export function AuthorizedRetrieverForm({ students }: { students: StudentOption[
           <label htmlFor="retriever-email" className="mb-2 block text-sm font-medium text-slate-700">Correo</label>
           <input id="retriever-email" name="email" type="email" required autoComplete="email" className="w-full rounded-xl border border-slate-300 px-4 py-3" />
         </div>
+        <div className="md:col-span-2">
+          <label htmlFor="retriever-rut" className="mb-2 block text-sm font-medium text-slate-700">RUT</label>
+          <input
+            id="retriever-rut"
+            name="rut"
+            required
+            autoComplete="off"
+            placeholder="12345678-5"
+            className="w-full rounded-xl border border-slate-300 px-4 py-3"
+          />
+          <p className="mt-2 text-xs text-slate-500">Se utilizará para identificar y reutilizar de forma segura a un retirador registrado previamente.</p>
+        </div>
         <div>
           <label htmlFor="valid-from" className="mb-2 block text-sm font-medium text-slate-700">Válido desde</label>
           <input id="valid-from" name="valid_from" type="datetime-local" required value={validFrom} onChange={(event) => setValidFrom(event.target.value)} className="w-full rounded-xl border border-slate-300 px-4 py-3" />

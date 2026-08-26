@@ -5,8 +5,15 @@ import dotenv from 'dotenv';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env.e2e.local'), quiet: true });
 
+// El servidor Next iniciado por la suite necesita la misma clave administrativa
+// exclusivamente para probar el alta/invitación de un retirador en el ambiente E2E.
+if (!process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.E2E_SUPABASE_SERVICE_ROLE_KEY) {
+  process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.E2E_SUPABASE_SERVICE_ROLE_KEY;
+}
+
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000';
 const startLocalServer = process.env.E2E_START_LOCAL_SERVER === 'true';
+if (startLocalServer) process.env.VALIDGATE_E2E_BYPASS_EMAIL_DELIVERY = 'true';
 const startedAt = new Date();
 const generatedReportRunId = [
   startedAt.getFullYear(),

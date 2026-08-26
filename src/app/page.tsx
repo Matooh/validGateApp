@@ -37,7 +37,7 @@ export default async function LoginPage({
 
           <div className="space-y-4">
             <span className="inline-flex rounded-full bg-sky-100 px-4 py-1 text-sm font-medium text-sky-700">
-              MVP desplegable en Vercel
+              MVP validado en entorno local controlado
             </span>
           </div>
         </section>

@@ -142,11 +142,11 @@ El estudiante puede solicitar permiso para salir por sus propios medios:
 2. Envía una solicitud con un motivo opcional.
 3. La solicitud permanece disponible durante 15 minutos.
 4. El apoderado la aprueba o rechaza desde su dashboard.
-5. Una aprobación genera una autorización temporal de salida.
-6. El estudiante confirma la salida usando una credencial QR válida.
-7. El sistema vuelve a comprobar el estado, el permiso para salir solo y la autorización antes de registrar el evento.
+5. Una aprobación genera un retiro pendiente y dos PIN independientes para el apoderado y el estudiante.
+6. Portería valida presencialmente ambos PIN y confirma el retiro efectivo.
+7. Solo entonces el sistema registra la salida y cambia al estudiante al estado fuera de la institución.
 
-El estudiante solicita y confirma la salida, pero no puede aprobar su propia autorización.
+El estudiante inicia la solicitud, el apoderado la aprueba y portería confirma la salida después de validar ambas identidades.
 
 ### 8. Retiro con validación dual
 
@@ -230,7 +230,8 @@ Estas reglas se vuelven a validar en el servidor y la base de datos; no dependen
 - Tailwind CSS.
 - Playwright para pruebas funcionales end-to-end.
 - npm para dependencias y scripts.
-- Vercel como plataforma objetivo de despliegue.
+- Ejecución local de una build de producción para la validación académica.
+- Vercel u otra plataforma compatible como alternativa productiva futura.
 
 ## Estructura del software
 
@@ -282,6 +283,26 @@ npm run build
 npm run start
 ```
 
+### Preparación de la demo académica
+
+La defensa utiliza una build de producción ejecutada en el PC de demostración y
+Supabase Cloud para autenticación y persistencia:
+
+```bash
+npm run demo
+```
+
+El comando valida el entorno y la configuración, comprueba Supabase sin escribir
+datos, construye la aplicación, inicia Next.js y ejecuta un smoke Playwright de
+solo lectura funcional. Al finalizar las comprobaciones, el servidor permanece
+activo hasta presionar `Ctrl+C`.
+
+Desde PowerShell, abre Git Bash antes de ejecutar el comando. En esta máquina,
+Git Bash está instalado en `C:\Program Files\Git\bin\bash.exe`; el comando
+`bash` de PowerShell puede corresponder a WSL.
+
+Consulta [la guía de demo local](docs/DEMO_LOCAL.md) para opciones y contingencias.
+
 ## Pruebas E2E
 
 La suite Playwright cubre flujos críticos de autenticación, permisos, vinculación, ingreso, salida regular, salida autónoma y retiro con PIN dual.
@@ -298,7 +319,7 @@ npm run test:e2e:report
 
 Las ejecuciones generan reportes HTML, JSON, JUnit y PDF, además de capturas, videos y trazas cuando corresponde. Cada corrida se conserva en una carpeta independiente `reports/YYYYMMDD-HHMM/` y no se versiona.
 
-Consulta [E2E_TESTING.md](E2E_TESTING.md) para la configuración segura del ambiente de pruebas.
+Consulta [la guía de pruebas E2E](reports/README.md) para la configuración segura del ambiente de pruebas.
 
 ## Alcance actual del MVP
 
@@ -323,10 +344,9 @@ Quedan fuera del alcance actual las integraciones con dispositivos físicos, not
 
 ## Documentación relacionada
 
-- [Configuración local](docs/CONFIGURACION_LOCAL.md)
-- [Pruebas end-to-end](E2E_TESTING.md)
-- [Flujo de retiradores autorizados](AUTHORIZED_RETRIEVER_FLOW.md)
-- [Plan de pruebas funcionales](docs/plan_pruebas_funcionales_validgate.md)
+- [Preparación de la demo local](docs/DEMO_LOCAL.md)
+- [Pruebas end-to-end](reports/README.md)
+- [Flujo de retiradores autorizados](docs/AUTHORIZED_RETRIEVER_FLOW.md)
 
 ## Autor
 

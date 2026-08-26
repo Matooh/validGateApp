@@ -17,7 +17,7 @@ export async function linkStudentByCodeAction(formData: FormData) {
 
   const { profile } = await requireUser();
   if (profile?.role !== 'APODERADO') {
-    redirect('/dashboard?message=Solo+los+apoderados+pueden+vincularse+mediante+c%C3%B3digo');
+    redirect('/dashboard?kind=error&message=Solo+los+apoderados+pueden+vincularse+mediante+c%C3%B3digo');
   }
   const supabase = await createClient();
 

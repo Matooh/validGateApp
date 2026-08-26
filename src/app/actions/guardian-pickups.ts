@@ -24,6 +24,7 @@ export type GuardianPickupRequest = {
   studentFailedAttempts: number;
   maxAttempts: number;
   notificationMessage: string;
+  pinOnly: boolean;
 };
 
 export type MyPickupPin = {
@@ -51,14 +52,20 @@ type PickupRow = {
   student_failed_attempts: number;
   max_attempts: number;
   notification_message: string;
+  pin_only: boolean;
 };
 
 function firstRow<T>(data: T | T[] | null): T | null {
   return Array.isArray(data) ? data[0] ?? null : data;
 }
 
-function redirectWithPickupMessage(path: '/dashboard' | '/guard', code?: string | null): never {
-  redirect(`${path}?message=${encodeURIComponent(getPickupMessage(code))}`);
+function redirectWithPickupMessage(
+  path: '/dashboard' | '/guard',
+  code?: string | null,
+  toastId?: string,
+): never {
+  const identity = toastId ? `&toast=${encodeURIComponent(toastId)}` : '';
+  redirect(`${path}?message=${encodeURIComponent(getPickupMessage(code))}${identity}`);
 }
 
 function refreshPickupViews() {
@@ -84,7 +91,12 @@ async function executePickupRpc(
 export async function listGuardianPickupRequests(): Promise<GuardianPickupRequest[]> {
   await requireUser();
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc('list_guardian_pickup_requests');
+  let { data, error } = await supabase.rpc('list_guardian_pickup_requests_v2');
+  if (error?.code === 'PGRST202') {
+    const legacy = await supabase.rpc('list_guardian_pickup_requests');
+    data = legacy.data;
+    error = legacy.error;
+  }
   if (error) {
     console.error('guardian_pickup_list_error', { code: error.code, message: error.message });
     return [];
@@ -109,6 +121,7 @@ export async function listGuardianPickupRequests(): Promise<GuardianPickupReques
     studentFailedAttempts: row.student_failed_attempts,
     maxAttempts: row.max_attempts,
     notificationMessage: row.notification_message,
+    pinOnly: row.pin_only ?? false,
   }));
 }
 
@@ -156,13 +169,14 @@ export async function cancelGuardianPickupRequestFromForm(formData: FormData) {
 }
 
 export async function validateGuardianPickupPinFromForm(formData: FormData) {
+  const actorType = String(formData.get('actor_type') ?? '');
   const result = await executePickupRpc('validate_guardian_pickup_pin', {
     p_request_id: String(formData.get('request_id') ?? ''),
-    p_actor_type: String(formData.get('actor_type') ?? ''),
+    p_actor_type: actorType,
     p_pin: String(formData.get('pin') ?? '').trim(),
   });
   refreshPickupViews();
-  redirectWithPickupMessage('/guard', result.message_code);
+  redirectWithPickupMessage('/guard', result.message_code, `pin-${actorType.toLowerCase()}`);
 }
 
 export async function manuallyValidateGuardianPickupActorFromForm(formData: FormData) {

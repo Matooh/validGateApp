@@ -1,14 +1,15 @@
 # Automatización E2E de VALIDGATE
 
-La suite inicial automatiza 15 escenarios funcionales identificados por los mismos IDs del plan Gherkin. Cada ejecución genera reporte HTML, JSON, JUnit, un resumen HTML imprimible y un PDF.
+La suite automatiza 28 IDs funcionales mediante 45 pruebas Playwright, además de un smoke de demo. Variantes por rol o condición pueden compartir el mismo ID del plan Gherkin. Cada ejecución genera reporte HTML, JSON, JUnit, un resumen HTML imprimible y un PDF.
 
 ## 1. Configurar variables locales
 
 1. Copia `.env.e2e.example` como `.env.e2e.local`.
 2. Completa la URL y la `service_role` del proyecto Supabase de **testing**.
-3. Define correos y passwords ficticios para los cinco roles.
+3. Define correos y passwords ficticios para los cinco roles base. Las cuentas `RETIRADOR_AUTORIZADO` se crean de forma controlada durante sus casos E2E.
 4. Verifica que todos los correos contengan el valor de `E2E_EMAIL_MARKER` (por defecto, `e2e`).
 5. Cuando hayas revisado el proyecto de destino, cambia `E2E_ALLOW_REMOTE_MUTATIONS=true`.
+6. Aplica las migraciones hasta `027_fix_confirm_guardian_pickup_request_id.sql` antes de ejecutar los casos de retiro autorizado.
 
 `.env.e2e.local` está ignorado por Git. La `service_role` nunca debe usarse en código del navegador, compartirse por chat ni subirse al repositorio.
 
@@ -70,14 +71,20 @@ El PDF incluye fecha, ambiente, build, navegador, totales, una matriz ID–RF–
 
 El HTML de Playwright conserva las mismas capturas como adjuntos de cada caso. Cuando una prueba falla, además conserva la captura nativa del fallo, el video y la traza interactiva.
 
-## 5. Cobertura inicial
+## 5. Cobertura vigente
 
-- PF-AUTH-002, PF-AUTH-003.
-- PF-ACC-002, PF-ACC-003.
-- PF-VIN-001, PF-VIN-002.
-- PF-ING-001, PF-ING-003.
-- PF-SAL-003, PF-SAL-004.
-- PF-RET-001, PF-RET-003, PF-RET-004, PF-RET-006.
-- PF-SAU-001.
+- Autenticación y acceso: PF-AUTH-002/003 y PF-ACC-002/003.
+- Vínculos: PF-VIN-001/002 y PF-VIN-ADM-001 a 004.
+- Acceso y salida: PF-ING-001/003, PF-SAL-003/004, PF-SAU-001 y PF-SOL-002.
+- Retiro de apoderado: PF-RET-001/003/004/005/006.
+- Retirador temporal: PF-RET-AUT-001 a PF-RET-AUT-007.
+
+Para ejecutar exclusivamente el flujo de retirador autorizado:
+
+```powershell
+npx playwright test e2e/authorized-retriever-pickup.spec.ts --project=chromium
+```
+
+Cada PF-RET-AUT adjunta varias evidencias ordenadas —estado inicial, acción, mensajes, validación y estado final—. Los PIN se enmascaran tanto cuando aparecen en campos como cuando la aplicación los renderiza como texto.
 
 Los `Scenario Outline` producen más de un caso ejecutado cuando contienen varios roles o condiciones, pero conservan el mismo ID funcional.

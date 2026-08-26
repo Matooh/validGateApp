@@ -14,6 +14,7 @@ export const PICKUP_MESSAGE_TEXT: Record<string, string> = {
   PICKUP_BLOCKED_BY_ATTEMPTS: 'Solicitud bloqueada por alcanzar el máximo de intentos.',
   PICKUP_PIN_EXPIRED: 'Los PIN expiraron. Debe generarse una nueva solicitud.',
   PICKUP_CONTINGENCY_DETAILS_REQUIRED: 'Debes indicar un motivo y una observación para la contingencia.',
+  PICKUP_PIN_REQUIRED: 'Este retiro requiere validar ambas identidades exclusivamente mediante PIN.',
   PICKUP_MANUAL_VALIDATED: 'Identidad validada mediante contingencia manual.',
   PICKUP_NOT_READY: 'Se deben validar ambas personas antes de confirmar el retiro.',
   PICKUP_COMPLETED: 'Retiro confirmado y salida registrada.',

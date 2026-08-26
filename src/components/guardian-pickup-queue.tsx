@@ -14,6 +14,7 @@ const STATUS_LABELS: Record<string, string> = {
   COMPLETED: 'Completado',
   REJECTED_BY_STUDENT: 'Rechazado por el estudiante',
   CANCELLED_BY_GUARDIAN: 'Cancelado por el apoderado',
+  CANCELLED_AUTHORIZATION_REVOKED: 'Cancelado por revocación de autorización',
   EXPIRED: 'Expirado',
   BLOCKED_BY_ATTEMPTS: 'Bloqueado por intentos',
   REJECTED_AT_GATE: 'Rechazado en portería',
@@ -65,7 +66,7 @@ function ActorValidation({
           Validar PIN
         </PendingSubmitButton>
       </form>
-      <details className="rounded-xl bg-slate-50 p-3">
+      {!request.pinOnly ? <details className="rounded-xl bg-slate-50 p-3">
         <summary className="cursor-pointer text-sm font-medium text-sky-700">Validación manual controlada</summary>
         <form action={manuallyValidateGuardianPickupActorFromForm} className="mt-3 space-y-2">
           <input type="hidden" name="request_id" value={request.requestId} />
@@ -83,7 +84,7 @@ function ActorValidation({
             Validar manualmente
           </PendingSubmitButton>
         </form>
-      </details>
+      </details> : null}
     </div>
   );
 }

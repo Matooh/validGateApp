@@ -5,6 +5,8 @@ export const AUTHORIZATION_MESSAGE_TEXT = {
   AUTH_REQUEST_STUDENT_NOT_INSIDE: 'Solo puedes solicitar salida si figuras dentro de la institución.',
   AUTH_REQUEST_PENDING: 'La solicitud está pendiente de respuesta.',
   AUTH_REQUEST_APPROVED: 'Solicitud aprobada por el apoderado.',
+  AUTH_REQUEST_APPROVED_PICKUP_PENDING:
+    'Solicitud aprobada. Presenten ambos PIN en portería para confirmar el retiro.',
   AUTH_REQUEST_REJECTED: 'Solicitud rechazada por el apoderado.',
   AUTH_REQUEST_EXPIRED: 'La solicitud expiro. Debe generarse una nueva.',
   AUTH_REQUEST_FORBIDDEN: 'No tienes permisos para gestionar esta solicitud.',

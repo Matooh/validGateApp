@@ -4,12 +4,16 @@ import { credentialsFor, type E2ERole } from './env';
 
 export async function login(page: Page, role: E2ERole) {
   const credentials = credentialsFor(role);
+  await loginWithCredentials(page, credentials.email, credentials.password, role);
+}
+
+export async function loginWithCredentials(page: Page, email: string, password: string, expectedRole?: string) {
   await page.goto('/');
-  await page.getByLabel('Email').fill(credentials.email);
-  await page.getByLabel('Password').fill(credentials.password);
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: 'Login' }).click();
   await expect(page).toHaveURL(/\/dashboard/);
-  await expect(page.getByText(role, { exact: true }).first()).toBeVisible();
+  if (expectedRole) await expect(page.getByText(expectedRole, { exact: true }).first()).toBeVisible();
 }
 
 export async function logout(page: Page) {

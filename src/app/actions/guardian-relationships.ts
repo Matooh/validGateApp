@@ -10,7 +10,11 @@ type RelationshipResult = {
   status?: string;
 };
 
-const ALLOWED_RELATION_TYPES = new Set(['APODERADO']);
+const ALLOWED_RELATION_TYPES = new Set([
+  'APODERADO_PRINCIPAL',
+  'APODERADO',
+  'RETIRADOR_AUTORIZADO',
+]);
 
 function redirectWithMessage(kind: 'success' | 'error' | 'info', message: string): never {
   redirect(`/admin/relationships?kind=${kind}&message=${encodeURIComponent(message)}`);

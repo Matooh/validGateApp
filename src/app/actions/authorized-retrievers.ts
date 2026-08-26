@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { requireUser } from '@/lib/auth';
+import { normalizeRut } from '@/lib/chile/rut';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -34,6 +35,8 @@ export async function inviteAuthorizedRetiradorAction(formData: FormData) {
   const firstName = String(formData.get('first_name') ?? '').trim();
   const lastName = String(formData.get('last_name') ?? '').trim();
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
+  const rutValue = String(formData.get('rut') ?? '').trim();
+  const rut = normalizeRut(rutValue);
   const timezoneOffset = Number(formData.get('timezone_offset_minutes'));
   const validFromIso = String(formData.get('valid_from_iso') ?? '');
   const validUntilIso = String(formData.get('valid_until_iso') ?? '');
@@ -42,7 +45,7 @@ export async function inviteAuthorizedRetiradorAction(formData: FormData) {
 
   if (
     !Number.isInteger(studentId) || studentId <= 0 || !firstName || !lastName
-    || !/^\S+@\S+\.\S+$/.test(email) || !validFrom || !validUntil
+    || !/^\S+@\S+\.\S+$/.test(email) || !rut || !validFrom || !validUntil
     || Number.isNaN(validFrom.getTime()) || Number.isNaN(validUntil.getTime())
     || validUntil <= validFrom || validUntil <= new Date()
   ) {
@@ -52,7 +55,11 @@ export async function inviteAuthorizedRetiradorAction(formData: FormData) {
   const supabase = await createClient();
   const { data: availableStudents, error: studentsError } = await supabase
     .rpc('list_students_available_for_retirador_authorization');
-  if (studentsError || !(availableStudents ?? []).some((item: { student_id: number }) => item.student_id === studentId)) {
+  if (studentsError) {
+    console.error('authorized_retriever_students_error', { code: studentsError.code, message: studentsError.message });
+    redirectWithMessage('error', 'No fue posible verificar los estudiantes disponibles.');
+  }
+  if (!(availableStudents ?? []).some((item: { student_id: number | string }) => Number(item.student_id) === studentId)) {
     redirectWithMessage('error', 'No puedes autorizar retiros para ese estudiante.');
   }
 
@@ -61,11 +68,29 @@ export async function inviteAuthorizedRetiradorAction(formData: FormData) {
     redirectWithMessage('error', 'Las invitaciones por correo todavía no están configuradas en el servidor.');
   }
 
-  const { data: existingProfile } = await admin
+  const { data: profileByEmail } = await admin
     .from('profiles')
-    .select('id, role')
+    .select('id, role, email, rut')
     .ilike('email', email)
     .maybeSingle();
+
+  const { data: profileByRut } = await admin
+    .from('profiles')
+    .select('id, role, email, rut')
+    .eq('rut', rut)
+    .maybeSingle();
+
+  if (profileByEmail && profileByRut && profileByEmail.id !== profileByRut.id) {
+    redirectWithMessage('error', 'El correo y el RUT pertenecen a cuentas diferentes.');
+  }
+
+  const existingProfile = profileByEmail ?? profileByRut;
+  if (existingProfile && existingProfile.email.toLowerCase() !== email) {
+    redirectWithMessage('error', 'El RUT ya pertenece a una cuenta registrada con otro correo.');
+  }
+  if (existingProfile?.rut && existingProfile.rut.toUpperCase() !== rut) {
+    redirectWithMessage('error', 'El correo ya pertenece a una cuenta registrada con otro RUT.');
+  }
 
   let retrieverProfileId = existingProfile?.id as string | undefined;
   if (existingProfile && !['APODERADO', 'RETIRADOR_AUTORIZADO'].includes(existingProfile.role)) {
@@ -74,10 +99,21 @@ export async function inviteAuthorizedRetiradorAction(formData: FormData) {
 
   if (!retrieverProfileId) {
     const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000').replace(/\/$/, '');
-    const { data: invitation, error: invitationError } = await admin.auth.admin.inviteUserByEmail(email, {
-      redirectTo: `${siteUrl}/auth/callback?next=/links`,
-      data: { first_name: firstName, last_name: lastName, validgate_role: 'RETIRADOR_AUTORIZADO' },
-    });
+    const userMetadata = {
+      first_name: firstName,
+      last_name: lastName,
+      validgate_role: 'RETIRADOR_AUTORIZADO',
+      validgate_rut: rut,
+    };
+    // La suite E2E valida el alta y la vinculacion, pero no debe depender de
+    // SMTP ni consumir la cuota de invitaciones del proyecto remoto.
+    const { data: invitation, error: invitationError } =
+      process.env.VALIDGATE_E2E_BYPASS_EMAIL_DELIVERY === 'true'
+        ? await admin.auth.admin.createUser({ email, email_confirm: false, user_metadata: userMetadata })
+        : await admin.auth.admin.inviteUserByEmail(email, {
+          redirectTo: `${siteUrl}/auth/callback?next=/links`,
+          data: userMetadata,
+        });
     if (invitationError || !invitation.user) {
       redirectWithMessage('error', 'No se pudo enviar la invitación. Verifica el correo e inténtalo nuevamente.');
     }
@@ -88,12 +124,16 @@ export async function inviteAuthorizedRetiradorAction(formData: FormData) {
       email,
       first_name: firstName,
       last_name: lastName,
+      rut,
       role: 'RETIRADOR_AUTORIZADO',
       institution_id: profile.institution_id,
     }, { onConflict: 'id' });
     if (profileError) {
       redirectWithMessage('error', 'La invitación fue enviada, pero no se pudo completar el perfil de acceso.');
     }
+  } else if (!existingProfile?.rut) {
+    const { error: rutError } = await admin.from('profiles').update({ rut }).eq('id', retrieverProfileId);
+    if (rutError) redirectWithMessage('error', 'No se pudo asociar el RUT a la cuenta existente.');
   }
 
   const { data, error } = await supabase.rpc('create_authorized_retirador_link', {

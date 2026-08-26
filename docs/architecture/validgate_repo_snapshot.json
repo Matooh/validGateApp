@@ -13,6 +13,8 @@
     "architecture": "Monolito modular serverless cliente-servidor con Next.js App Router, Server Components, componentes cliente, Server Actions, acceso directo a Supabase y reglas críticas en PostgreSQL/RLS/RPC.",
     "status": "MVP funcional parcial",
     "inspection_date": "2026-07-19",
+    "operational_update_date": "2026-08-22",
+    "operational_note": "La validación académica usa Next.js local con Supabase Cloud; Vercel es una evolución futura.",
     "inspected_route_count": 69,
     "detected_module_count": 8
   },
@@ -20,10 +22,10 @@
     {"path": "src/app", "status": "Encontrado", "observation": "Páginas, Server Actions y un Route Handler"},
     {"path": "src/components", "status": "Encontrado", "observation": "UI cliente/presentación"},
     {"path": "src/lib", "status": "Encontrado", "observation": "Auth, permisos, tipos y adaptadores Supabase"},
-    {"path": "supabase/migrations", "status": "Encontrado", "observation": "15 migraciones declarativas"},
-    {"path": "tests|e2e|playwright.config", "status": "No encontrado", "observation": "Sin suite automatizada"},
+    {"path": "supabase/migrations", "status": "Encontrado", "observation": "27 migraciones declarativas"},
+    {"path": "e2e|playwright.config.ts|playwright.demo.config.ts", "status": "Encontrado", "observation": "Suite funcional y smoke de demo no destructivo"},
     {"path": ".env.example", "status": "Encontrado", "observation": "Solo nombres de dos variables públicas inspeccionados"},
-    {"path": "deployment", "status": "Parcial", "observation": "Vercel documentado; despliegue real no verificado"}
+    {"path": "deployment", "status": "Validación local verificada", "observation": "Next.js local con Supabase Cloud; Vercel futuro"}
   ],
   "actors": [
     {"name": "Administrador", "kind": "authenticated_role", "status": "partial"},
@@ -31,7 +33,7 @@
     {"name": "Docente", "kind": "authenticated_role", "status": "partial"},
     {"name": "Apoderado", "kind": "authenticated_role", "status": "implemented"},
     {"name": "Estudiante", "kind": "authenticated_role", "status": "implemented"},
-    {"name": "Persona autorizada", "kind": "human_domain_entity", "status": "not_an_application_user"},
+    {"name": "Retirador autorizado", "kind": "authenticated_role", "status": "implemented"},
     {"name": "Supabase", "kind": "external_service", "status": "implemented"}
   ],
   "roles": [
@@ -39,7 +41,8 @@
     {"name": "PORTERIA", "evidence": ["src/lib/types.ts", "src/app/guard/page.tsx"]},
     {"name": "DOCENTE", "evidence": ["src/lib/types.ts", "src/lib/auth.ts"]},
     {"name": "APODERADO", "evidence": ["src/app/dashboard/page.tsx", "supabase/migrations/001_init.sql"]},
-    {"name": "ESTUDIANTE", "evidence": ["src/lib/students/get-current-student.ts", "supabase/migrations/008_student_profiles.sql"]}
+    {"name": "ESTUDIANTE", "evidence": ["src/lib/students/get-current-student.ts", "supabase/migrations/008_student_profiles.sql"]},
+    {"name": "RETIRADOR_AUTORIZADO", "evidence": ["src/lib/types.ts", "src/lib/permissions.ts", "supabase/migrations/022_authorized_retirador_role.sql"]}
   ],
   "functional_requirements": [
     {"id": "RF-OBS-01", "name": "Autenticación", "status": "Implementada", "evidence": ["src/app/actions/auth.ts"]},
@@ -165,7 +168,8 @@
     {"name": "RoleBrowser", "status": "verified_in_code"},
     {"name": "GateBrowserDevice", "status": "verified_in_code", "note": "Camera integration not used"},
     {"name": "NextJsRuntime", "status": "verified_in_code"},
-    {"name": "Vercel", "status": "documented_not_verified"},
+    {"name": "LocalDemoPC", "status": "verified_for_academic_validation"},
+    {"name": "Vercel", "status": "future_optional"},
     {"name": "SupabaseAuth", "status": "verified_in_code"},
     {"name": "SupabasePostgreSQL", "status": "declared_in_migrations"},
     {"name": "SupabaseStorage", "status": "No verificado en el repositorio"}
@@ -181,19 +185,16 @@
     {"control": "Input schemas with Zod", "status": "not_implemented"}
   ],
   "tests": [
-    {"type": "BDD specification", "tool": "Gherkin text", "scenario": "Login success/failure", "file": "docs/test-plan.feature", "status": "documentary"},
-    {"type": "E2E", "tool": "Playwright", "scenario": null, "file": null, "status": "not_found"},
+    {"type": "E2E", "tool": "Playwright", "scenario": "Auth, roles, links, events, pickup and temporary retrievers", "file": "e2e/*.spec.ts", "status": "45 functional tests"},
+    {"type": "Demo smoke", "tool": "Playwright", "scenario": "Availability, protected route and login", "file": "e2e/demo-smoke.spec.ts", "status": "found"},
     {"type": "Unit", "tool": null, "scenario": null, "file": null, "status": "not_found"},
     {"type": "Integration", "tool": null, "scenario": null, "file": null, "status": "not_found"}
   ],
   "gaps": [
-    {"severity": "Alta", "name": "Retiro no valida persona autorizada"},
     {"severity": "Alta", "name": "RPC link_student_by_code ausente en migraciones"},
     {"severity": "Alta", "name": "Aprobación y autorización no transaccionales"},
-    {"severity": "Alta", "name": "Sin pruebas automatizadas críticas"},
     {"severity": "Alta", "name": "Rechazos QR sin auditoría persistente"},
     {"severity": "Alta", "name": "Registro manual vulnerable a check-then-insert concurrente"},
-    {"severity": "Media", "name": "PIN sin implementación real"},
     {"severity": "Media", "name": "Columnas de contingencia no pobladas"},
     {"severity": "Media", "name": "CRUD administrativos incompletos"},
     {"severity": "Media", "name": "Horario no aplicado a salidas"},
@@ -206,8 +207,8 @@
     "logical_view": ["Roles", "Entidades de dominio", "Relaciones y reglas"],
     "process_view": ["Ingreso manual/QR", "Retiro QR", "Solicitud/aprobación", "Salida autónoma"],
     "development_view": ["Next App Router", "Components", "Server Actions", "Supabase adapters", "SQL migrations"],
-    "physical_view": ["Browsers", "Next.js runtime", "Supabase Auth/PostgreSQL", "Vercel propuesto"],
-    "scenarios": ["Registro de ingreso", "Retiro autorizado parcial", "Salida autónoma"]
+    "physical_view": ["Browsers", "Local Next.js runtime", "Supabase Auth/PostgreSQL", "Vercel futuro opcional"],
+    "scenarios": ["Registro de ingreso", "Retiro autorizado con PIN dual", "Retirador temporal", "Salida autónoma"]
   },
   "diagram_readiness": [
     {"diagram": "Casos de uso", "sufficient": true, "missing": "CRUD futuro y detalle de tercero"},
@@ -215,9 +216,9 @@
     {"diagram": "Componentes", "sufficient": true, "missing": "Infraestructura real"},
     {"diagram": "Actividades", "sufficient": true, "missing": "Excepciones de tercero/horario"},
     {"diagram": "Secuencia ingreso", "sufficient": true, "missing": "Política de concurrencia manual"},
-    {"diagram": "Secuencia retiro", "sufficient": false, "missing": "Validación de identidad de authorized_people"},
+    {"diagram": "Secuencia retiro", "sufficient": true, "missing": "Expiración temporal y concurrencia"},
     {"diagram": "Secuencia salida autónoma", "sufficient": true, "missing": "Semántica futura de aprobación directa"},
-    {"diagram": "Despliegue", "sufficient": false, "missing": "Evidencia Vercel, regiones y red"},
+    {"diagram": "Despliegue", "sufficient": true, "missing": "Topología productiva futura fuera del alcance académico"},
     {"diagram": "Contexto", "sufficient": true, "missing": "Integraciones futuras"},
     {"diagram": "Base de datos", "sufficient": true, "missing": "Estado desplegado"},
     {"diagram": "Arquitectura general", "sufficient": true, "missing": "Métricas runtime"}

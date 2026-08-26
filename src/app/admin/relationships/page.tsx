@@ -47,8 +47,12 @@ export default async function GuardianRelationshipsPage({
 
   const guardians = (guardiansResult.data ?? []) as GuardianCandidate[];
   const students = (studentsResult.data ?? []) as StudentCandidate[];
-  const relationships = ((relationshipsResult.data ?? []) as GuardianRelationship[])
-    .filter((relationship) => relationship.relation_type === 'APODERADO');
+  const courseByStudentId = new Map(students.map((student) => [student.student_id, student.course_name]));
+  const relationships = ((relationshipsResult.data ?? []) as Omit<GuardianRelationship, 'student_course'>[])
+    .map((relationship) => ({
+      ...relationship,
+      student_course: courseByStudentId.get(relationship.student_id) ?? null,
+    }));
   const hasLoadError = Boolean(guardiansResult.error || studentsResult.error || relationshipsResult.error);
   const params = await searchParams;
   const messageKind = params.kind && MESSAGE_STYLES[params.kind] ? params.kind : 'info';

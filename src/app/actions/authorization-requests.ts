@@ -29,12 +29,14 @@ type PendingAuthorizationRequestRow = {
         first_name: string;
         last_name: string;
         is_in_institution: boolean;
+        can_leave_alone: boolean;
         courses?: { name: string | null } | { name: string | null }[] | null;
       }
     | {
         first_name: string;
         last_name: string;
         is_in_institution: boolean;
+        can_leave_alone: boolean;
         courses?: { name: string | null } | { name: string | null }[] | null;
       }[]
     | null;
@@ -46,6 +48,7 @@ export type GuardianPendingAuthorizationRequest = {
   studentName: string;
   courseName: string | null;
   isInInstitution: boolean;
+  canLeaveAlone: boolean;
   requestType: string;
   reason: string | null;
   requestedAt: string;
@@ -294,7 +297,7 @@ export async function listGuardianPendingAuthorizationRequests(): Promise<
   const { data } = await supabase
     .from('authorization_requests')
     .select(
-      'id, student_id, request_type, reason, requested_at, expires_at, students(first_name, last_name, is_in_institution, courses(name))',
+      'id, student_id, request_type, reason, requested_at, expires_at, students(first_name, last_name, is_in_institution, can_leave_alone, courses(name))',
     )
     .eq('guardian_profile_id', user.id)
     .eq('status', 'PENDING')
@@ -312,6 +315,7 @@ export async function listGuardianPendingAuthorizationRequests(): Promise<
         : 'Estudiante',
       courseName: student ? getCourseName(student) : null,
       isInInstitution: Boolean(student?.is_in_institution),
+      canLeaveAlone: Boolean(student?.can_leave_alone),
       requestType: row.request_type,
       reason: row.reason,
       requestedAt: row.requested_at,
@@ -352,6 +356,7 @@ export async function respondToAuthorizationRequest(
 
   if (
     rpcResult.message_code !== 'AUTH_REQUEST_APPROVED' &&
+    rpcResult.message_code !== 'AUTH_REQUEST_APPROVED_PICKUP_PENDING' &&
     rpcResult.message_code !== 'AUTH_REQUEST_REJECTED'
   ) {
     revalidatePath('/dashboard');
@@ -374,11 +379,11 @@ export async function respondToAuthorizationRequestFromForm(formData: FormData) 
   const decision = String(formData.get('decision') ?? '');
   const note = String(formData.get('note') ?? '').trim();
 
-  if (decision !== 'APPROVED' && decision !== 'REJECTED') {
+  if (decision !== 'APPROVED' && decision !== 'REJECTED' && decision !== 'SUPERVISED_PICKUP') {
     redirectWithAuthorizationMessage('AUTH_REQUEST_NOT_ALLOWED');
   }
 
-  const normalizedDecision = decision as 'APPROVED' | 'REJECTED';
+  const normalizedDecision = decision === 'SUPERVISED_PICKUP' ? 'APPROVED' : decision as 'APPROVED' | 'REJECTED';
   const result = await respondToAuthorizationRequest(requestId, normalizedDecision, note);
   redirectWithAuthorizationMessage(result.messageCode);
 }
