@@ -1,195 +1,76 @@
-# Guía para ejecutar el plan de pruebas de VALIDGATE
+# Pruebas end-to-end de VALIDGATE
 
-Esta guía explica cómo ejecutar la suite funcional end-to-end (E2E) de VALIDGATE y revisar las evidencias generadas en esta carpeta. Los casos automatizados se encuentran en `e2e/`, usan Playwright y se relacionan con la estrategia de pruebas documentada en la tesis vigente.
+Este directorio contiene el plan funcional, la guía de ejecución y una carpeta independiente por cada corrida de Playwright. La fuente del catálogo es [plan_pruebas_funcionales_validgate.md](plan_pruebas_funcionales_validgate.md); las instrucciones operativas están en [GUIA_PARA_EJECUTAR_E2E_TESTING.md](GUIA_PARA_EJECUTAR_E2E_TESTING.md).
 
-> **Importante:** ejecuta las pruebas únicamente contra un proyecto Supabase de testing. La preparación de datos crea usuarios y modifica registros identificados con el namespace E2E.
+## Alcance vigente
 
-## 1. Requisitos previos
+La configuración funcional descubre **47 pruebas con 47 identificadores únicos**. `DEMO-SMOKE-001` se ejecuta mediante `playwright.demo.config.ts` y no forma parte del catálogo `PF-*` ni del PDF funcional.
 
-- Node.js y npm instalados.
-- Acceso a un proyecto Supabase exclusivo para pruebas.
-- Una clave administrativa `sb_secret_...` o una clave JWT legacy con rol `service_role`.
-- Credenciales ficticias para los roles `ADMIN`, `PORTERIA`, `DOCENTE`, `APODERADO` y `ESTUDIANTE`.
-- Migraciones aplicadas hasta `027_fix_confirm_guardian_pickup_request_id.sql` para completar retiros con PIN dual.
-- Chromium para Playwright.
+Los casos se presentan conceptualmente en este orden:
 
-Desde la raíz del repositorio, instala las dependencias y el navegador si aún no están disponibles:
+1. inicio de sesión;
+2. restricciones transversales de acceso;
+3. vínculos;
+4. ingresos, salidas y contingencias;
+5. retiros con PIN dual;
+6. Apoderados Secundarios;
+7. aislamiento de trazabilidad.
 
-```powershell
-npm install
-npx playwright install chromium
-```
+Cuando un caso conceptual tiene variantes por rol o condición se agrega un sufijo alfabético. Por ejemplo, `PF-ACC-002A`, `PF-ACC-002B` y `PF-ACC-002C` son resultados independientes y no tres repeticiones de `PF-ACC-002`.
 
-## 2. Configurar el ambiente E2E
+## Cobertura automatizada
 
-Crea el archivo local de configuración a partir de la plantilla:
+| Área | Casos |
+| --- | --- |
+| Inicio de sesión | `PF-AUTH-002A`–`002E`, `PF-AUTH-003` |
+| Restricciones | `PF-ACC-002A`–`002C`, `PF-ACC-003` |
+| Vínculos | `PF-VIN-001A`–`001C`, `PF-VIN-002A`–`002B`, `PF-VIN-ADM-001`, `002A`–`002D`, `003`, `004` |
+| Ingreso y salida | `PF-ING-001A`–`001B`, `PF-ING-003`, `PF-SAL-003A`–`003C`, `PF-SAL-004`, `PF-SOL-002A`–`002B` |
+| Retiro primario | `PF-RET-001`, `003`–`006` |
+| Apoderado Secundario | `PF-APO-SEC-001`–`005`, `007` |
+| Protección de trazabilidad | `PF-TRA-002A`–`002E` |
 
-```powershell
-Copy-Item .env.e2e.example .env.e2e.local
-```
+Los saltos numéricos representan casos pendientes o retirados. No se reutilizan identificadores para conservar la trazabilidad histórica.
 
-Completa `.env.e2e.local` con los datos del ambiente de testing. Como mínimo, debes definir:
+## Evidencia requerida
 
-```env
-PLAYWRIGHT_BASE_URL=http://localhost:3000
-E2E_START_LOCAL_SERVER=true
+Cada flujo conserva capturas ordenadas del estado inicial, la acción, los mensajes, las validaciones y el resultado final. Además:
 
-E2E_SUPABASE_URL=https://PROJECT_REF.supabase.co
-E2E_SUPABASE_SERVICE_ROLE_KEY=sb_secret_...
-E2E_ALLOW_REMOTE_MUTATIONS=true
-E2E_NAMESPACE=validgate-e2e
-E2E_EMAIL_MARKER=e2e
+- los casos de PIN muestran ambos valores, las dos aprobaciones en verde y la continuación del flujo;
+- los casos de vinculación muestran el código válido o inválido cuando corresponde;
+- `PF-VIN-ADM-001` muestra los vínculos iniciales tanto para el estudiante con relaciones como para el que no tiene ninguna;
+- todo ingreso, salida, rechazo, contingencia o retiro que genere un evento incluye la trazabilidad resultante;
+- la evidencia de trazabilidad captura el componente completo **Trazabilidad reciente**, no solamente una tarjeta;
+- cada tarjeta visible conserva estudiante, tipo, resultado, método, descripción y fecha/hora disponibles;
+- contraseñas y payloads QR permanecen protegidos.
 
-E2E_ADMIN_EMAIL=...
-E2E_ADMIN_PASSWORD=...
-E2E_PORTERIA_EMAIL=...
-E2E_PORTERIA_PASSWORD=...
-E2E_DOCENTE_EMAIL=...
-E2E_DOCENTE_PASSWORD=...
-E2E_APODERADO_EMAIL=...
-E2E_APODERADO_PASSWORD=...
-E2E_ESTUDIANTE_EMAIL=...
-E2E_ESTUDIANTE_PASSWORD=...
-```
+## Protección de datos validada
 
-Todos los correos deben contener el texto configurado en `E2E_EMAIL_MARKER`. El archivo `.env.e2e.local` contiene secretos, está ignorado por Git y no debe compartirse ni versionarse.
+Los escenarios `PF-TRA-002A` a `PF-TRA-002E` comprueban:
 
-### Aplicación local
+- separación entre familias;
+- aislamiento institucional de administrador y portería;
+- alcance temporal e histórico propio del Apoderado Secundario;
+- aislamiento de docentes entre instituciones;
+- igualdad de alcance entre dos docentes de la misma institución, sin introducir docente–curso en el MVP.
 
-Usa esta configuración para que Playwright inicie VALIDGATE automáticamente:
+Las aserciones verifican tanto la presencia de los eventos permitidos como la ausencia de datos protegidos.
 
-```env
-PLAYWRIGHT_BASE_URL=http://localhost:3000
-E2E_START_LOCAL_SERVER=true
-```
-
-Si existe `.env.local`, su `NEXT_PUBLIC_SUPABASE_URL` debe apuntar al mismo proyecto que `E2E_SUPABASE_URL`; la ejecución se detendrá si son distintos.
-
-### Despliegue de testing
-
-Para probar un despliegue que ya está en ejecución:
-
-```env
-PLAYWRIGHT_BASE_URL=https://tu-entorno-testing.example
-E2E_START_LOCAL_SERVER=false
-```
-
-## 3. Verificar y ejecutar el plan
-
-Primero confirma qué casos reconoce Playwright, sin ejecutarlos:
-
-```powershell
-npm run test:e2e:list
-```
-
-Luego ejecuta el plan automatizado completo:
-
-```powershell
-npm run test:e2e
-```
-
-Para la preparación de la defensa existe además un smoke acotado que no ejecuta
-el preparador con Service Role ni restablece datos:
-
-```powershell
-npm run test:demo
-```
-
-Este comando presupone que la aplicación ya está iniciada. El flujo recomendado
-es `npm run demo`, ejecutado desde Git Bash.
-
-El smoke usa `DEMO_ADMIN_EMAIL` y `DEMO_ADMIN_PASSWORD`. Estas credenciales son
-independientes de las cuentas `E2E_*` que el preparador de la suite completa
-puede crear o restablecer.
-
-La suite se ejecuta en Chromium, con un trabajador y sin paralelismo. Antes de comenzar, el `globalSetup` valida la configuración y prepara datos aislados mediante `E2E_NAMESPACE`.
-
-Actualmente Playwright descubre 46 pruebas: 45 funcionales asociadas a 28 IDs y un smoke de demo. Los siete casos PF-RET-AUT generan evidencias visuales ordenadas de los estados iniciales, acciones, mensajes, validaciones y resultados finales.
-
-### Modos alternativos
-
-```powershell
-# Ver el navegador mientras se ejecuta la suite
-npm run test:e2e:headed
-
-# Seleccionar y depurar casos desde la interfaz de Playwright
-npm run test:e2e:ui
-
-# Ejecutar solamente un archivo
-npx playwright test e2e/auth-access.spec.ts
-
-# Ejecutar los siete casos de retirador temporal
-npx playwright test e2e/authorized-retriever-pickup.spec.ts --project=chromium
-
-# Ejecutar un caso por su ID o parte del título
-npx playwright test --grep "PF-RET-AUT-006"
-
-# Detenerse después del primer fallo
-npx playwright test --max-failures=1
-```
-
-Los archivos principales agrupan estos flujos:
-
-| Archivo | Cobertura |
-|---|---|
-| `auth-access.spec.ts` | Autenticación, roles, permisos y vinculación |
-| `access-events.spec.ts` | Ingreso, salida regular y salida autónoma |
-| `guardian-pickup.spec.ts` | Retiro con validación de PIN dual |
-| `authorized-retriever-pickup.spec.ts` | Registro, autorización temporal, revocación y retiro mediante retirador autorizado |
-| `links-visibility.spec.ts` | Visibilidad de vínculos por rol |
-
-## 4. Revisar los resultados
-
-Cada corrida crea una carpeta independiente con la hora local de inicio:
+## Salida de una ejecución
 
 ```text
 reports/
 └── YYYYMMDD-HHMM/
-    ├── playwright-html/               # Reporte interactivo de Playwright
-    ├── playwright-results.json        # Resultado estructurado
-    ├── playwright-results.xml         # Resultado JUnit
-    ├── VALIDGATE_resultados_e2e.html   # Resumen ejecutivo imprimible
-    ├── VALIDGATE_resultados_e2e.pdf    # Evidencia para anexar a la tesis
-    └── test-results/                   # Capturas, videos y trazas de fallos
+    ├── playwright-html/
+    ├── playwright-results.json
+    ├── playwright-results.xml
+    ├── VALIDGATE_resultados_e2e.html
+    ├── VALIDGATE_resultados_e2e.pdf
+    └── test-results/
 ```
 
-Abre el reporte interactivo de la ejecución más reciente con:
+El PDF contiene el contexto de ejecución, los totales, la matriz ID–RF–OE–rol–resultado y el anexo de evidencias. El HTML de Playwright conserva los adjuntos y, ante un fallo, la captura, el video, la traza y el contexto disponibles.
 
-```powershell
-npm run test:e2e:report
-```
+## Seguridad de los datos E2E
 
-El comando selecciona la carpeta `YYYYMMDD-HHMM` más reciente y levanta el visor local de Playwright. Para inspeccionar una corrida específica:
-
-```powershell
-npx playwright show-report reports/20260815-2136/playwright-html
-```
-
-Reemplaza `20260815-2136` por el identificador deseado. Para abrir una traza de una prueba fallida:
-
-```powershell
-npx playwright show-trace "reports/AAAAmmdd-HHMM/test-results/<caso>/trace.zip"
-```
-
-## 5. Criterio de revisión
-
-Al finalizar una ejecución:
-
-1. Confirma que el comando termine con código de salida `0`.
-2. Revisa en el reporte HTML los casos aprobados, fallidos, omitidos o reintentados.
-3. Para cada fallo, examina el mensaje, la captura, el video y la traza en `test-results/`.
-4. Comprueba que el PDF incluya la matriz de trazabilidad, el ambiente y el build esperados.
-5. Conserva la carpeta completa de la corrida que se usará como evidencia; no mezcles archivos de ejecuciones diferentes.
-
-Un fallo puede deberse al producto, a datos E2E inconsistentes, a credenciales incorrectas o a que la aplicación y el preparador apuntan a proyectos Supabase distintos. Corrige la causa antes de repetir la corrida y conserva ambas ejecuciones si necesitas demostrar el ciclo hallazgo–corrección–revalidación.
-
-## 6. Errores frecuentes
-
-- **Faltan variables E2E:** completa todas las variables obligatorias en `.env.e2e.local`.
-- **`E2E_ALLOW_REMOTE_MUTATIONS` no es `true`:** habilítalo solo después de verificar que `E2E_SUPABASE_URL` corresponde al proyecto de testing.
-- **Clave administrativa inválida:** no uses una clave pública `sb_publishable_...`; configura una clave secreta o `service_role`.
-- **El correo no contiene el marcador:** usa cuentas ficticias cuyo correo incluya `E2E_EMAIL_MARKER`.
-- **La aplicación no responde:** revisa `PLAYWRIGHT_BASE_URL`; si es local, confirma que el puerto esté libre o inicia la aplicación manualmente y usa `E2E_START_LOCAL_SERVER=false`.
-- **El visor abre una corrida inesperada:** indica directamente la ruta de la corrida con `npx playwright show-report`.
-
-La suite completa debe continuar ejecutándose únicamente sobre un proyecto de testing. El smoke de demo no sustituye la evidencia funcional integral.
+La suite debe ejecutarse exclusivamente contra un proyecto Supabase de testing. El preparador utiliza un namespace, usuarios marcados como E2E y estudiantes con código `E2E-*`; no debe reutilizar ni modificar cuentas ajenas a ese alcance.

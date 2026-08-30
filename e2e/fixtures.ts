@@ -4,7 +4,7 @@ type EvidenceFixtures = {
   captureEvidence: (
     label: string,
     target?: Locator,
-    options?: { preserveToast?: boolean },
+    options?: { preserveToast?: boolean; revealPins?: boolean; revealCodes?: boolean },
   ) => Promise<void>;
   visualEvidence: void;
 };
@@ -20,28 +20,35 @@ async function dismissFeedbackToast(page: Page) {
 async function screenshot(
   page: Page,
   target?: Locator,
-  evidenceOptions: { preserveToast?: boolean } = {},
+  evidenceOptions: { preserveToast?: boolean; revealPins?: boolean; revealCodes?: boolean } = {},
 ) {
   if (!evidenceOptions.preserveToast) await dismissFeedbackToast(page);
 
-  const sensitiveFields = page.locator([
+  const alwaysSensitiveFields = page.locator([
     'input[type="password"]',
     'textarea',
-    'input[name*="code" i]',
-    'input[id*="code" i]',
-    'input[name*="pin" i]',
-    'input[id*="pin" i]',
     'input[name*="payload" i]',
     'input[id*="payload" i]',
   ].join(', '));
+  const codeFields = page.locator([
+    'input[name*="code" i]',
+    'input[id*="code" i]',
+  ].join(', '));
+  const pinFields = page.locator([
+    'input[name*="pin" i]',
+    'input[id*="pin" i]',
+  ].join(', '));
+  const masks = [alwaysSensitiveFields];
+  if (!evidenceOptions.revealCodes) masks.push(codeFields);
+  if (!evidenceOptions.revealPins) masks.push(pinFields, page.getByText(/^\d{5}$/));
   const screenshotOptions = {
     type: 'jpeg' as const,
     quality: 80,
     animations: 'disabled' as const,
     caret: 'hide' as const,
-    // Los PIN generados se renderizan como texto, no como inputs. Tambien se
-    // enmascaran para que la trazabilidad visual no exponga credenciales.
-    mask: [sensitiveFields, page.getByText(/^\d{5}$/)],
+    // Los PIN generados se renderizan como texto, no como inputs. Cada caso
+    // decide explícitamente si los muestra como evidencia E2E controlada.
+    mask: masks,
     maskColor: '#dbeafe',
     style: target ? 'header.sticky { visibility: hidden !important; }' : undefined,
   };
@@ -57,8 +64,8 @@ async function screenshot(
 
 /**
  * Captura una evidencia visual compacta al terminar cada caso. Los controles de
- * sensibles se enmascaran para que passwords, codigos, payloads QR y PIN no
- * terminen en los reportes que se comparten fuera del equipo.
+ * sensibles se enmascaran por defecto. Los casos pueden revelar códigos o PIN
+ * E2E de forma explícita cuando el valor forma parte de la evidencia solicitada.
  */
 export const test = base.extend<EvidenceFixtures>({
   captureEvidence: async ({ page }, use, testInfo) => {

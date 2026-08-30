@@ -389,11 +389,30 @@ export function RecordAccessForm({
     if (
       eventType &&
       exitKind !== 'EXCEPCIONAL' &&
+      (eventType !== 'SALIDA' || selectedStudentsForRules.every((student) => student.can_leave_alone)) &&
+      !(
+        eventType === 'SALIDA' &&
+        exitKind === 'SOLO' &&
+        validationKind === 'MANUAL' &&
+        usingContingency &&
+        selectedStudentsForRules.length > 0 &&
+        selectedStudentsForRules.every((student) => student.can_leave_alone)
+      ) &&
       currentEventPolicy.requiresAuthenticator &&
       currentEventPolicy.authenticatorIsExclusive &&
       !authenticatorPresented
     ) {
       nextWarnings.push('La configuración exige QR o PIN para este evento.');
+    }
+
+    if (
+      eventType === 'SALIDA' &&
+      exitKind !== 'EXCEPCIONAL' &&
+      selectedStudentsForRules.some((student) => !student.can_leave_alone)
+    ) {
+      nextWarnings.push(
+        'El estudiante no puede salir solo. El retiro exige validar el PIN del estudiante y el PIN de su responsable.',
+      );
     }
 
     if (
@@ -498,7 +517,7 @@ export function RecordAccessForm({
   const summaryItems = summaryHasRequiredFields
     ? [
         requiresGuardianContingencyApproval
-          ? `Se SOLICITA AUTORIZACIÓN DE SALIDA para ${selectedStudentSummary} mediante aprobación del apoderado.`
+          ? `Se SOLICITA AUTORIZACIÓN DE SALIDA para ${selectedStudentSummary} mediante aprobación del Apoderado Primario.`
           : `Se ${resultSummary} ${eventSummary} para ${selectedStudentSummary} mediante ${validationSummary}.`,
         contingencyMode === 'CONTINGENCIA_SIN_DISPOSITIVO' ? 'Contingencia: Dispositivo.' : '',
       ].filter(Boolean)
@@ -545,11 +564,11 @@ export function RecordAccessForm({
   const exitPolicySummary = exitKind === 'EXCEPCIONAL'
     ? 'Excepcional: omite QR/PIN y aprobación; observación obligatoria.'
     : selectedStudentsForRules.some((student) => !student.can_leave_alone)
-      ? 'QR/PIN obligatorio; el retiro requiere validación dual del estudiante y su responsable.'
+      ? 'PIN dual obligatorio y excluyente: deben validarse el PIN del estudiante y el de su responsable; el QR individual no autoriza la salida.'
       : accessPolicy.exit_requires_authenticator
         ? accessPolicy.exit_authenticator_is_exclusive
-          ? 'QR/PIN obligatorio; ante contingencia sin dispositivo, aprobación del apoderado obligatoria.'
-          : 'QR/PIN requerido; las excepciones deben quedar documentadas.'
+          ? 'QR obligatorio para salida autónoma; ante contingencia sin dispositivo, aprobación del Apoderado Primario obligatoria.'
+          : 'QR requerido para salida autónoma; las excepciones deben quedar documentadas.'
         : 'Registro manual permitido.';
 
   const hasPendingFormInput = Boolean(

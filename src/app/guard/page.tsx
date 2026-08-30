@@ -77,7 +77,7 @@ export default async function GuardPage({
   const { data: events } = await supabase
     .from('access_events')
     .select(
-      'id, event_type, exit_kind, validation_kind, result, occurred_at, notes, authenticator_required, authenticator_presented, policy_failure, students(id, first_name, last_name)',
+      'id, event_type, exit_kind, validation_kind, result, occurred_at, notes, authenticator_required, authenticator_presented, policy_failure, policy_snapshot, students(id, first_name, last_name)',
     )
     .order('occurred_at', { ascending: false })
     .limit(10);
@@ -216,6 +216,13 @@ export default async function GuardPage({
                                 Descripción:
                               </span>{' '}
                               {event.notes}
+                            </p>
+                          ) : null}
+
+                          {event.exit_kind === 'RETIRO_AUTORIZADO' && event.policy_snapshot?.guardian_name ? (
+                            <p className="mt-2 text-sm text-slate-600">
+                              <span className="font-medium text-slate-800">Retirado por:</span>{' '}
+                              {event.policy_snapshot.guardian_name}
                             </p>
                           ) : null}
                         </div>

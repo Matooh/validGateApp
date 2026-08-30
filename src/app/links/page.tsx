@@ -57,7 +57,7 @@ function uniqueStudentsFromLinks(links: VisibleLink[]): StudentOption[] {
 }
 
 function relationshipLabel(type: VisibleLink['relation_type']) {
-  return type === 'APODERADO' ? 'Apoderado' : 'Retirador autorizado';
+  return type === 'APODERADO' ? 'Apoderado Primario' : 'Apoderado Secundario';
 }
 
 export default async function LinksPage({ searchParams }: { searchParams: Promise<{ message?: string; kind?: string }> }) {

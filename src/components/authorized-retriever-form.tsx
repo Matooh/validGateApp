@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { inviteAuthorizedRetiradorAction } from '@/app/actions/authorized-retrievers';
 import { PendingSubmitButton } from '@/components/pending-submit-button';
+import { formatRut, isValidRut } from '@/lib/chile/rut';
 
 type StudentOption = { student_id: number; student_name: string; institution_name: string };
 
@@ -16,6 +17,7 @@ export function AuthorizedRetrieverForm({ students }: { students: StudentOption[
   const [timezoneOffset, setTimezoneOffset] = useState(0);
   const [validFrom, setValidFrom] = useState('');
   const [validUntil, setValidUntil] = useState('');
+  const [rut, setRut] = useState('');
   const validFromIsoRef = useRef<HTMLInputElement>(null);
   const validUntilIsoRef = useRef<HTMLInputElement>(null);
 
@@ -33,8 +35,8 @@ export function AuthorizedRetrieverForm({ students }: { students: StudentOption[
       if (validUntilIsoRef.current) validUntilIsoRef.current.value = validUntil ? new Date(validUntil).toISOString() : '';
     }} className="space-y-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
       <div>
-        <h2 className="text-xl font-semibold text-slate-900">Autorizar retirador</h2>
-        <p className="mt-1 text-sm text-slate-500">Se enviará una invitación por correo. El acceso solo estará disponible durante el período indicado.</p>
+        <h2 className="text-xl font-semibold text-slate-900">Autorizar Apoderado Secundario</h2>
+        <p className="mt-1 text-sm text-slate-500">Se enviará una invitación por correo. El Apoderado Secundario solo podrá retirar estudiantes asignados durante el período indicado.</p>
       </div>
       <input type="hidden" name="timezone_offset_minutes" value={timezoneOffset} />
       <input ref={validFromIsoRef} type="hidden" name="valid_from_iso" />
@@ -59,17 +61,29 @@ export function AuthorizedRetrieverForm({ students }: { students: StudentOption[
           <label htmlFor="retriever-email" className="mb-2 block text-sm font-medium text-slate-700">Correo</label>
           <input id="retriever-email" name="email" type="email" required autoComplete="email" className="w-full rounded-xl border border-slate-300 px-4 py-3" />
         </div>
-        <div className="md:col-span-2">
+        <div className="max-w-sm md:col-span-2">
           <label htmlFor="retriever-rut" className="mb-2 block text-sm font-medium text-slate-700">RUT</label>
           <input
             id="retriever-rut"
             name="rut"
             required
+            value={rut}
+            onChange={(event) => {
+              event.currentTarget.setCustomValidity('');
+              setRut(formatRut(event.target.value));
+            }}
+            onBlur={(event) => event.currentTarget.setCustomValidity(
+              event.currentTarget.value && !isValidRut(event.currentTarget.value)
+                ? 'Ingresa un RUT válido.'
+                : '',
+            )}
             autoComplete="off"
+            inputMode="text"
+            maxLength={10}
             placeholder="12345678-5"
             className="w-full rounded-xl border border-slate-300 px-4 py-3"
           />
-          <p className="mt-2 text-xs text-slate-500">Se utilizará para identificar y reutilizar de forma segura a un retirador registrado previamente.</p>
+          <p className="mt-2 text-xs text-slate-500">Se formatea sin puntos y se valida el dígito verificador.</p>
         </div>
         <div>
           <label htmlFor="valid-from" className="mb-2 block text-sm font-medium text-slate-700">Válido desde</label>
@@ -80,6 +94,18 @@ export function AuthorizedRetrieverForm({ students }: { students: StudentOption[
           <input id="valid-until" name="valid_until" type="datetime-local" required min={validFrom} value={validUntil} onChange={(event) => setValidUntil(event.target.value)} className="w-full rounded-xl border border-slate-300 px-4 py-3" />
         </div>
       </div>
+      <label className="flex items-start gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
+        <input
+          type="checkbox"
+          name="confirm_existing_retriever_authorization"
+          required
+          className="mt-0.5 h-4 w-4 rounded border-sky-300 text-sky-700 focus:ring-sky-500"
+        />
+        <span>
+          <span className="block font-semibold">Autorizar Apoderado Secundario previamente registrado</span>
+          Confirmo que este Apoderado Secundario puede retirar al estudiante durante el período indicado. Si el correo y RUT ya existen, se reutilizará esa cuenta.
+        </span>
+      </label>
       <PendingSubmitButton pendingLabel="Enviando invitación..." disabled={!students.length} className="rounded-xl bg-sky-700 px-4 py-3 font-semibold text-white hover:bg-sky-800 disabled:cursor-not-allowed disabled:bg-sky-300">
         Invitar y autorizar
       </PendingSubmitButton>

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { requireStaff } from '@/lib/auth';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import {
   DEFAULT_ACCESS_POLICY,
@@ -76,12 +77,12 @@ function resolvePolicyFailure({
       return null;
     }
 
-    if (requiresAuthenticator && authenticatorIsExclusive && !authenticatorPresented) {
-      return 'AUTHENTICATOR_REQUIRED';
+    if (!student.can_leave_alone) {
+      return 'EXIT_NOT_ALLOWED_ALONE';
     }
 
-    if (exitKind === 'SOLO' && !student.can_leave_alone) {
-      return 'EXIT_NOT_ALLOWED_ALONE';
+    if (requiresAuthenticator && authenticatorIsExclusive && !authenticatorPresented) {
+      return 'AUTHENTICATOR_REQUIRED';
     }
 
     if (
@@ -115,7 +116,7 @@ const POLICY_FAILURE_MESSAGES: Record<AccessPolicyFailure, string> = {
   AUTHENTICATOR_REQUIRED: 'La política exige QR o PIN para este evento',
   ENTRY_ALREADY_ACTIVE: 'El estudiante ya registra un ingreso activo',
   EXIT_WITHOUT_ACTIVE_ENTRY: 'El estudiante no tiene un ingreso activo',
-  EXIT_NOT_ALLOWED_ALONE: 'El estudiante no está autorizado para salir solo',
+  EXIT_NOT_ALLOWED_ALONE: 'El estudiante no puede salir solo; el retiro exige PIN dual del estudiante y su responsable',
   EXIT_OBSERVATION_REQUIRED: 'Debes agregar una observación si registras salida sin autenticador',
   VALIDATION_ERROR: 'El evento no cumple las reglas de validación',
 };
@@ -257,14 +258,23 @@ export async function recordAccessEventAction(formData: FormData) {
     selectedStudentSnapshots.every((student) => student.is_in_institution && student.can_leave_alone);
 
   if (shouldRequestGuardianApproval) {
-    const { data: guardianLinks, error: guardianLinksError } = await supabase
+    // Portería no puede leer guardian_students mediante RLS. La consulta se
+    // realiza en servidor después de requireStaff y se limita a la institución
+    // y estudiantes ya validados en esta acción.
+    const relationshipClient = createAdminClient();
+    if (!relationshipClient) {
+      redirect('/guard?message=No+se+pudo+consultar+el+Apoderado+Primario+vinculado');
+    }
+    const { data: guardianLinks, error: guardianLinksError } = await relationshipClient
       .from('guardian_students')
-      .select('student_id, guardian_profile_id, relation_type, created_at')
+      .select('student_id, guardian_profile_id, relation_type, created_at, students!inner(institution_id)')
       .in('student_id', studentIds)
+      .eq('students.institution_id', institutionId)
+      .eq('relation_type', 'APODERADO')
       .order('created_at', { ascending: true });
 
     if (guardianLinksError) {
-      redirect('/guard?message=No+se+pudieron+consultar+los+apoderados+vinculados');
+      redirect('/guard?message=No+se+pudieron+consultar+los+Apoderados+Primarios+vinculados');
     }
 
     const guardiansByStudent = new Map<number, { guardian_profile_id: string; relation_type: string | null }>();
@@ -280,10 +290,10 @@ export async function recordAccessEventAction(formData: FormData) {
     }
 
     if (studentIds.some((studentId) => !guardiansByStudent.has(studentId))) {
-      redirect('/guard?message=No+hay+un+apoderado+vinculado+para+autorizar+la+contingencia');
+      redirect('/guard?message=No+hay+un+Apoderado+Primario+vinculado+para+autorizar+la+contingencia');
     }
 
-    const { data: existingPending, error: existingPendingError } = await supabase
+    const { data: existingPending, error: existingPendingError } = await relationshipClient
       .from('authorization_requests')
       .select('student_id')
       .in('student_id', studentIds)
@@ -311,7 +321,7 @@ export async function recordAccessEventAction(formData: FormData) {
       }));
 
     if (requestsToCreate.length > 0) {
-      const { error: requestError } = await supabase
+      const { error: requestError } = await relationshipClient
         .from('authorization_requests')
         .insert(requestsToCreate);
 
@@ -324,7 +334,7 @@ export async function recordAccessEventAction(formData: FormData) {
     revalidatePath('/dashboard');
     redirect(`/guard?message=${encodeURIComponent(
       requestsToCreate.length > 0
-        ? `Solicitud de contingencia enviada al apoderado para ${requestsToCreate.length} estudiante(s)`
+        ? `Solicitud de contingencia enviada al Apoderado Primario para ${requestsToCreate.length} estudiante(s)`
         : 'La solicitud de contingencia ya está pendiente de respuesta',
     )}`);
   }

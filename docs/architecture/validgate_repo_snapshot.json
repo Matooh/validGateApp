@@ -13,7 +13,7 @@
     "architecture": "Monolito modular serverless cliente-servidor con Next.js App Router, Server Components, componentes cliente, Server Actions, acceso directo a Supabase y reglas críticas en PostgreSQL/RLS/RPC.",
     "status": "MVP funcional parcial",
     "inspection_date": "2026-07-19",
-    "operational_update_date": "2026-08-22",
+    "operational_update_date": "2026-08-28",
     "operational_note": "La validación académica usa Next.js local con Supabase Cloud; Vercel es una evolución futura.",
     "inspected_route_count": 69,
     "detected_module_count": 8
@@ -31,9 +31,9 @@
     {"name": "Administrador", "kind": "authenticated_role", "status": "partial"},
     {"name": "Personal de portería", "kind": "authenticated_role", "status": "implemented"},
     {"name": "Docente", "kind": "authenticated_role", "status": "partial"},
-    {"name": "Apoderado", "kind": "authenticated_role", "status": "implemented"},
+    {"name": "Apoderado Primario", "kind": "authenticated_role", "technical_role": "APODERADO", "status": "implemented"},
     {"name": "Estudiante", "kind": "authenticated_role", "status": "implemented"},
-    {"name": "Retirador autorizado", "kind": "authenticated_role", "status": "implemented"},
+    {"name": "Apoderado Secundario", "kind": "authenticated_role", "technical_role": "RETIRADOR_AUTORIZADO", "status": "implemented"},
     {"name": "Supabase", "kind": "external_service", "status": "implemented"}
   ],
   "roles": [
@@ -50,19 +50,19 @@
     {"id": "RF-OBS-03", "name": "Gestión de estudiantes", "status": "Parcialmente implementada", "evidence": ["src/app/students/[id]/page.tsx"]},
     {"id": "RF-OBS-04", "name": "Gestión de cursos", "status": "Parcialmente implementada", "evidence": ["src/app/guard/page.tsx"]},
     {"id": "RF-OBS-05", "name": "Vinculación estudiante-apoderado", "status": "Parcialmente implementada", "evidence": ["src/app/actions/students.ts"]},
-    {"id": "RF-OBS-06", "name": "Personas autorizadas", "status": "Solo documentada/modelada", "evidence": ["supabase/migrations/001_init.sql"]},
+    {"id": "RF-OBS-06", "name": "Apoderados Secundarios temporales", "status": "Implementada", "evidence": ["src/app/actions/authorized-retrievers.ts", "supabase/migrations/022_authorized_retirador_role.sql", "supabase/migrations/023_links_and_temporary_retiradores.sql"]},
     {"id": "RF-OBS-07", "name": "Ingreso/salida manual", "status": "Implementada", "evidence": ["src/app/actions/access.ts"]},
-    {"id": "RF-OBS-08", "name": "Retiro", "status": "Parcialmente implementada", "evidence": ["src/components/qr-credential-validator.tsx", "supabase/migrations/012_authorization_requests.sql"]},
+    {"id": "RF-OBS-08", "name": "Retiro con validación dual", "status": "Implementada", "evidence": ["src/app/actions/guardian-pickups.ts", "src/components/guardian-pickup-queue.tsx", "supabase/migrations/017_guardian_pickup_dual_pin.sql", "supabase/migrations/027_fix_confirm_guardian_pickup_request_id.sql"]},
     {"id": "RF-OBS-09", "name": "Retiro anticipado", "status": "Solo documentada", "evidence": ["README.md"]},
     {"id": "RF-OBS-10", "name": "Salida autónoma", "status": "Implementada", "evidence": ["supabase/migrations/015_student_self_exit.sql"]},
     {"id": "RF-OBS-11", "name": "QR temporal opaco y de uso único", "status": "Implementada", "evidence": ["src/app/actions/qr-credentials.ts", "supabase/migrations/006_student_qr_credentials.sql"]},
-    {"id": "RF-OBS-12", "name": "PIN temporal", "status": "Futura", "evidence": ["src/app/authentications/page.tsx"]},
+    {"id": "RF-OBS-12", "name": "PIN temporal dual", "status": "Implementada", "evidence": ["src/app/authentications/page.tsx", "src/components/guardian-pickup-queue.tsx", "supabase/migrations/017_guardian_pickup_dual_pin.sql", "supabase/migrations/026_retriever_authorization_and_pin_consumption.sql"]},
     {"id": "RF-OBS-13", "name": "Contingencia manual", "status": "Parcialmente implementada", "evidence": ["src/app/actions/access.ts", "supabase/migrations/013_access_event_contingency.sql"]},
     {"id": "RF-OBS-14", "name": "Historial", "status": "Parcialmente implementada", "evidence": ["src/app/dashboard/page.tsx"]},
     {"id": "RF-OBS-15", "name": "Notificaciones", "status": "Parcialmente implementada", "evidence": ["src/components/feedback-toast.tsx"]},
     {"id": "RF-OBS-16", "name": "Anulaciones", "status": "No encontrada", "evidence": []},
     {"id": "RF-OBS-17", "name": "Observaciones", "status": "Parcialmente implementada", "evidence": ["src/app/actions/access.ts"]},
-    {"id": "RF-OBS-18", "name": "Intentos fallidos", "status": "Parcialmente implementada", "evidence": ["src/app/actions/access.ts"]}
+    {"id": "RF-OBS-18", "name": "Intentos fallidos", "status": "Implementada para PIN dual", "evidence": ["src/app/actions/guardian-pickups.ts", "supabase/migrations/017_guardian_pickup_dual_pin.sql"]}
   ],
   "use_cases": [
     {"actor": "ADMIN", "name": "Configurar política de acceso", "status": "implemented", "relation": "association"},
@@ -74,7 +74,7 @@
     {"actor": "PORTERIA", "name": "Confirmar retiro QR", "status": "partial", "relation": "association"},
     {"actor": "PORTERIA", "name": "Registrar contingencia", "status": "partial", "relation": "extend"},
     {"actor": "PORTERIA", "name": "Consultar eventos recientes", "status": "implemented", "relation": "association"},
-    {"actor": "APODERADO", "name": "Vincular estudiante", "status": "partial", "relation": "association"},
+    {"actor": "APODERADO", "name": "Vincular estudiante", "status": "implemented", "relation": "association"},
     {"actor": "APODERADO", "name": "Desvincular estudiante", "status": "implemented", "relation": "association"},
     {"actor": "APODERADO", "name": "Consultar historial", "status": "implemented", "relation": "association"},
     {"actor": "APODERADO", "name": "Generar QR vinculado", "status": "implemented", "relation": "association"},
@@ -104,7 +104,9 @@
       "institutions", "profiles", "courses", "students", "guardian_students",
       "authorized_people", "authorizations", "schedule_blocks", "attendance_blocks",
       "access_events", "institution_access_policies", "student_qr_credentials",
-      "student_profiles", "authorization_requests", "student_exit_authorizations"
+      "student_profiles", "authorization_requests", "student_exit_authorizations",
+      "institution_pickup_settings", "guardian_pickup_requests", "guardian_pickup_pins",
+      "guardian_pickup_audit_events", "internal_notifications", "guardian_pickup_secrets"
     ],
     "enums": [
       "app_role", "authorization_type", "access_event_type", "exit_type",
@@ -150,11 +152,12 @@
       {"order": 6, "participant": "apply_access_event", "message": "Actualiza estado/asistencia si aprobado"}
     ],
     "authorized_pickup": [
-      {"order": 1, "participant": "Porteria", "message": "Valida QR"},
-      {"order": 2, "participant": "validateStudentQrCredential", "message": "Comprueba vigencia y permiso temporal"},
-      {"order": 3, "participant": "confirm_student_qr_access_event", "message": "Bloquea y consume QR/autorización"},
-      {"order": 4, "participant": "access_events", "message": "Registra SALIDA/RETIRO_AUTORIZADO"},
-      {"order": 5, "participant": "Gap", "message": "No valida authorized_people ni identidad del retirador"}
+      {"order": 1, "participant": "Apoderado Primario o Secundario", "message": "Inicia la solicitud de retiro"},
+      {"order": 2, "participant": "Estudiante", "message": "Acepta o rechaza la solicitud"},
+      {"order": 3, "participant": "guardian_pickup_pins", "message": "Genera dos PIN distintos y temporales"},
+      {"order": 4, "participant": "Porteria", "message": "Valida por separado al responsable y al estudiante"},
+      {"order": 5, "participant": "confirm_guardian_pickup", "message": "La segunda validación completa automáticamente el retiro"},
+      {"order": 6, "participant": "access_events", "message": "Registra SALIDA/RETIRO_AUTORIZADO y trazabilidad"}
     ],
     "autonomous_exit": [
       {"order": 1, "participant": "Estudiante", "message": "Confirma salida"},
@@ -185,7 +188,7 @@
     {"control": "Input schemas with Zod", "status": "not_implemented"}
   ],
   "tests": [
-    {"type": "E2E", "tool": "Playwright", "scenario": "Auth, roles, links, events, pickup and temporary retrievers", "file": "e2e/*.spec.ts", "status": "45 functional tests"},
+    {"type": "E2E", "tool": "Playwright", "scenario": "Auth, roles, links, events, dual-PIN pickup, Apoderado Secundario and traceability isolation", "file": "e2e/*.spec.ts", "status": "47 functional tests with 47 unique IDs"},
     {"type": "Demo smoke", "tool": "Playwright", "scenario": "Availability, protected route and login", "file": "e2e/demo-smoke.spec.ts", "status": "found"},
     {"type": "Unit", "tool": null, "scenario": null, "file": null, "status": "not_found"},
     {"type": "Integration", "tool": null, "scenario": null, "file": null, "status": "not_found"}
@@ -208,7 +211,7 @@
     "process_view": ["Ingreso manual/QR", "Retiro QR", "Solicitud/aprobación", "Salida autónoma"],
     "development_view": ["Next App Router", "Components", "Server Actions", "Supabase adapters", "SQL migrations"],
     "physical_view": ["Browsers", "Local Next.js runtime", "Supabase Auth/PostgreSQL", "Vercel futuro opcional"],
-    "scenarios": ["Registro de ingreso", "Retiro autorizado con PIN dual", "Retirador temporal", "Salida autónoma"]
+    "scenarios": ["Registro de ingreso", "Retiro autorizado con PIN dual", "Apoderado Secundario temporal", "Salida autónoma"]
   },
   "diagram_readiness": [
     {"diagram": "Casos de uso", "sufficient": true, "missing": "CRUD futuro y detalle de tercero"},

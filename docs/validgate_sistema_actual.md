@@ -1,134 +1,116 @@
-# VALIDGATE - Documentacion del sistema actual
+# VALIDGATE — Sistema actual
 
-Fecha de referencia: 2026-05-24
+Fecha de referencia: 2026-08-28
 
-## Proposito
+## Propósito y alcance
 
-VALIDGATE es un MVP para control de ingreso y salida estudiantil. El sistema registra eventos de acceso, mantiene el estado dentro/fuera de cada estudiante, entrega trazabilidad a apoderados y estudiantes, y permite operar reglas institucionales con QR dinámico, validación manual y autorizaciones de salida.
+VALIDGATE es un MVP web para controlar el ingreso, la salida y el retiro de estudiantes. El sistema autentica usuarios, aplica reglas institucionales, mantiene el estado dentro/fuera del estudiante y conserva trazabilidad de operaciones aprobadas, rechazadas y excepcionales.
 
-## Roles
+La interfaz usa los nombres funcionales **Apoderado Primario** y **Apoderado Secundario**. Para mantener compatibilidad con el modelo existente, los identificadores técnicos continúan siendo `APODERADO` y `RETIRADOR_AUTORIZADO`; este cambio de vocabulario no modifica enums, migraciones ni políticas RLS.
 
-- `ADMIN`: gestiona configuración institucional, políticas de acceso y puede operar portería.
-- `PORTERIA`: valida QR, registra eventos de ingreso, salida y retiro, y revisa eventos recientes.
-- `DOCENTE`: rol preparado para visibilidad institucional y asistencia.
-- `APODERADO`: ve estudiantes vinculados, trazabilidad y responde solicitudes de autorización.
-- `ESTUDIANTE`: ve su dashboard, apoderados vinculados, credenciales QR y puede solicitar o registrar salida según permiso.
+## Roles y alcance de datos
+
+| Rol visible | Identificador técnico | Alcance actual |
+| --- | --- | --- |
+| Administrador | `ADMIN` | Configura y consulta su institución, gestiona vínculos y puede operar portería. No accede a otra institución. |
+| Portería | `PORTERIA` | Registra ingresos, salidas y retiros, valida QR/PIN y consulta trazabilidad de su institución. |
+| Docente | `DOCENTE` | Consulta el alcance institucional disponible para docentes. En el MVP no existe asignación profesor–curso: dos docentes de la misma institución ven el mismo conjunto. |
+| Apoderado Primario | `APODERADO` | Consulta únicamente estudiantes vinculados, gestiona vinculaciones permitidas, responde solicitudes y autoriza Apoderados Secundarios. |
+| Apoderado Secundario | `RETIRADOR_AUTORIZADO` | Consulta estudiantes autorizados mientras el vínculo temporal está vigente e inicia retiros para ellos. Tras revocación o vencimiento pierde acceso a eventos ajenos, pero conserva su propio retiro histórico. |
+| Estudiante | `ESTUDIANTE` | Consulta sus datos, vínculos y trazabilidad; genera QR, responde retiros y solicita salida según sus permisos. |
+
+La protección se aplica en navegación, Server Actions y políticas RLS. Ocultar una opción visual no sustituye la validación del servidor o de la base de datos.
 
 ## Módulos principales
 
-- `/`: login con mensajes genéricos y opción de recordar email.
-- `/register`: registro de usuario.
-- `/dashboard`: panel principal adaptado por rol.
-- `/guard`: módulo de portería para validar QR y registrar eventos.
-- `/authentications`: credenciales QR dinámicas.
-- `/settings`: perfil, password y políticas de acceso para administradores.
-- `/students/link`: vinculación por código.
-- `/students/[id]`: detalle del estudiante, contactos, permisos y asistencia.
+| Ruta | Función |
+| --- | --- |
+| `/` | Inicio de sesión con mensajes genéricos. |
+| `/register` | Registro de una cuenta base. |
+| `/dashboard` | Panel por rol, solicitudes y trazabilidad reciente. |
+| `/guard` | Operación de portería, validación y cola de retiros. |
+| `/authentications` | Credenciales QR y PIN disponibles para el usuario. |
+| `/links` | Consulta y administración de vínculos permitidos. |
+| `/students/link` | Vinculación de un estudiante mediante código. |
+| `/admin/relationships` | Administración institucional consolidada de vínculos. |
+| `/students/[id]` | Detalle, estado, responsables, horario y asistencia. |
+| `/settings` | Perfil y políticas institucionales según rol. |
 
-## Control de acceso y portería
+## Vinculación
 
-Portería registra eventos en `access_events`. Cada evento incluye estudiante, tipo (`INGRESO` o `SALIDA`), tipo de salida cuando aplica, método de validación, resultado, notas y snapshot de política.
+Un Apoderado Primario puede ingresar un código de vinculación desde su dashboard y continuar en el panel de vinculación. La interfaz muestra el código utilizado, informa el resultado y presenta el vínculo creado. Los códigos inválidos y los vínculos duplicados se rechazan sin ampliar el acceso del usuario.
 
-Cuando un evento queda `APROBADO`, el trigger `apply_access_event` actualiza `students.is_in_institution`:
+La administración institucional permite partir desde dos estados visibles:
 
-- `INGRESO`: deja al estudiante dentro de la institución.
-- `SALIDA`: deja al estudiante fuera de la institución.
+1. estudiante con vínculos existentes: se muestran primero las personas vinculadas y luego puede agregarse otra;
+2. estudiante sin vínculos: se muestra explícitamente la ausencia y luego puede agregarse el primero.
 
-Si una regla falla, el sistema registra un evento `RECHAZADO` para trazabilidad sin cambiar el estado del estudiante.
+La vista consolidada permite buscar estudiantes y administrar cada relación individualmente.
 
-## Políticas institucionales
+## Apoderados Secundarios
 
-La tabla `institution_access_policies` define si ingreso o salida requieren autenticador QR/PIN y si esa regla es excluyente.
+El Apoderado Primario registra o reutiliza una cuenta mediante nombre, correo, RUT y período de vigencia. El RUT se normaliza y valida con las reglas chilenas disponibles en `src/lib/chile/rut.ts`. La autorización puede revocarse antes de su vencimiento.
 
-El registro manual de portería evalúa:
+El acceso depende simultáneamente de la identidad, el estudiante asignado y la vigencia. Una autorización revocada o vencida no habilita nuevos retiros ni la trazabilidad general del estudiante.
 
-- ingreso duplicado cuando el estudiante ya está dentro;
-- salida sin ingreso activo;
-- salida solo cuando el estudiante no tiene permiso;
-- salida sin autenticador cuando la política lo exige;
-- necesidad de observación en contingencias.
+## Ingreso, salida y contingencia
 
-## Credenciales QR
+Portería registra eventos en `access_events`. Cada registro conserva, según corresponda, estudiante, institución, tipo y subtipo, método de validación, resultado, responsable, fecha, observaciones, política aplicada y motivo de contingencia o rechazo.
 
-Las credenciales QR se guardan en `student_qr_credentials`. Son opacas y temporales:
+Un evento aprobado actualiza el estado del estudiante y los bloques de asistencia relacionados. Un rechazo queda trazado, pero no cambia el estado dentro/fuera.
 
-- el QR contiene solo `validgate-auth:{uuid}`;
-- no contiene datos personales;
-- tiene expiración;
-- puede ser revocado;
-- se marca como usado al confirmar un evento;
-- un QR usado no puede reutilizarse.
+Cuando una salida normal no puede completarse por el mecanismo esperado, portería puede usar el flujo excepcional documentado si la política lo permite. Si el estudiante no puede salir solo, puede solicitarse aprobación al Apoderado Primario y continuar con validación dual.
 
-En `/authentications`, el sistema muestra un QR vigente si existe. No genera ni refresca QR automáticamente al entrar a la página. Un nuevo QR se crea solo cuando el usuario presiona el botón `Generar QR`.
+## Retiro con PIN dual
 
-En el dashboard del estudiante:
+Los retiros de Apoderado Primario y Secundario validan por separado al responsable y al estudiante:
 
-- si no hay QR vigente, el CTA muestra `Generar QR`;
-- si hay QR vigente, el CTA muestra `Ver QR`;
-- el estado QR indica si existe una credencial vigente y su hora de expiración;
-- `Registrar salida` queda deshabilitado si no existe QR vigente o si el estudiante está fuera de la institución.
+1. el responsable inicia el retiro;
+2. el estudiante acepta o rechaza la solicitud;
+3. al aceptar se generan dos PIN distintos;
+4. la interfaz de cada actor muestra su PIN y portería ingresa ambos;
+5. cada aprobación se muestra en verde;
+6. la segunda validación completa automáticamente la salida, muestra una instrucción nominal y genera la trazabilidad.
 
-## Salida por voluntad del estudiante
+Los PIN tienen vigencia, límite de intentos y consumo único. La cancelación, el rechazo, el vencimiento o la revocación correspondiente invalidan el flujo activo.
 
-Un estudiante puede registrar su propia salida solo cuando:
+## Credencial QR
 
-- tiene rol `ESTUDIANTE`;
-- está vinculado a un registro de estudiante;
-- se encuentra dentro de la institución;
-- tiene `can_leave_alone = true`;
-- posee una credencial QR vigente, no usada y no revocada.
+La credencial QR es opaca, temporal y de un solo uso. Contiene `validgate-auth:{uuid}` y no expone datos personales. Se valida en el servidor contra estudiante, institución, vigencia, consumo previo y operación solicitada.
 
-La RPC `confirm_student_self_exit()` realiza estas validaciones en base de datos y registra un evento `SALIDA` con `exit_kind = 'SOLO'`, `validation_kind = 'QR'` y resultado `APROBADO`.
+## Trazabilidad y protección de datos
 
-Si falta una precondición, la UI muestra mensajes accionables para el usuario y el servidor registra logs estructurados con códigos internos y status HTTP semántico.
+La sección **Trazabilidad reciente** debe presentarse completa en las evidencias funcionales: título de la sección, descripción y tarjetas visibles. Cada tarjeta muestra los datos disponibles del evento, incluidos estudiante, tipo de movimiento, resultado, método, descripción y fecha/hora.
 
-## Solicitudes de autorización
+El alcance vigente es:
 
-Cuando un estudiante no puede salir solo, puede crear una solicitud de autorización hacia su apoderado. El apoderado ve solicitudes pendientes en el dashboard y puede aprobar o rechazar.
+- familias distintas no ven eventos entre sí;
+- administrador y portería ven su institución, pero no otra;
+- los docentes de una institución comparten el mismo alcance institucional y no ven otra institución;
+- el Apoderado Secundario ve únicamente estudiantes autorizados durante la vigencia y conserva solo sus retiros históricos propios al perderla;
+- el estudiante ve su información y eventos relacionados.
 
-Si se aprueba, el sistema crea una autorización temporal en `student_exit_authorizations`. Portería puede consumir esa autorización al confirmar salida/retiro mediante QR.
+La suite E2E prueba explícitamente estas reglas mediante `PF-TRA-002A` a `PF-TRA-002E`.
 
-## Trazabilidad
+## Migraciones funcionales relevantes
 
-El dashboard combina eventos recientes de `access_events` con solicitudes de autorización para mostrar una vista de trazabilidad por rol.
+- `001_init.sql` a `016_transactional_authorization_response.sql`: base, RLS, QR, contingencias, estudiantes y solicitudes.
+- `017_guardian_pickup_dual_pin.sql` a `021_guardian_pickup_qualified_pin_columns.sql`: retiro con PIN dual, vigencia, intentos y consumo.
+- `022_authorized_retirador_role.sql` y `023_links_and_temporary_retiradores.sql`: rol técnico y vínculos temporales del Apoderado Secundario.
+- `024_exceptional_exit_and_staff_contingency.sql` y `025_student_exit_requires_dual_pin.sql`: salida excepcional y validación dual.
+- `026_retriever_authorization_and_pin_consumption.sql` y `027_fix_confirm_guardian_pickup_request_id.sql`: revocación, consumo y confirmación final.
 
-La card de evento puede mostrar una etiqueta visual `NEW`. Actualmente se usa `localStorage` para recordar eventos vistos por usuario, rol, módulo y tipo de evento. El badge desaparece al interactuar con la card. A futuro deberia reemplazarse por un modelo persistente de lectura, por ejemplo una tabla `access_event_views` o `notification_reads`.
+## Validación E2E
 
-## UI y comportamiento de formularios
+La configuración funcional descubre 47 pruebas con 47 identificadores únicos. Se organizan primero por autenticación y restricciones transversales y luego por vínculos, acceso, retiro y trazabilidad. El smoke `DEMO-SMOKE-001` se ejecuta con una configuración separada y no forma parte del catálogo `PF-*`.
 
-Los botones que ejecutan server actions quedan bloqueados mientras la petición está pendiente. Esto evita doble envío y entrega feedback visual consistente.
+Cada corrida guarda HTML, JSON, JUnit, PDF y adjuntos dentro de `reports/YYYYMMDD-HHMM/`. Los PIN y códigos requeridos por el caso pueden mostrarse en evidencia controlada; contraseñas y payloads QR permanecen protegidos.
 
-El sistema usa mensajes inline o toasts según el flujo. Los mensajes descartables tienen botón de cierre cuando corresponde, por ejemplo en validación QR de portería.
+## Limitaciones conocidas del MVP
 
-## Seguridad y RLS
-
-Las migraciones habilitan RLS para tablas sensibles y separan visibilidad por rol:
-
-- staff ve datos de su institución;
-- apoderados ven estudiantes y eventos vinculados;
-- estudiantes ven su propio perfil, apoderados vinculados y eventos propios;
-- QR y autorizaciones se consultan según relación y propietario.
-
-Las operaciones sensibles de QR y salida directa se resuelven con RPC `security definer`, validando rol, institución, estado del estudiante y vigencia de credenciales dentro de la base de datos.
-
-## Migraciones relevantes
-
-- `001_init.sql`: esquema base, eventos, asistencia, triggers y políticas iniciales.
-- `005_access_control_policies.sql`: políticas institucionales de autenticador.
-- `006_student_qr_credentials.sql`: credenciales QR temporales.
-- `007_enforce_qr_exit_rules.sql`: confirmación QR y reglas de salida.
-- `008_student_profiles.sql`: vinculo entre usuarios estudiante y registros de estudiante.
-- `009_student_guardian_visibility.sql`: visibilidad de apoderados para estudiantes.
-- `010_contact_identity_fields.sql`: RUT y teléfono.
-- `011_guardian_relation_types.sql`: normalizacion de tipos de relación.
-- `012_authorization_requests.sql`: solicitudes y autorizaciones temporales.
-- `013_access_event_contingency.sql`: contingencias por dispositivo.
-- `014_student_access_events_visibility.sql`: eventos visibles para estudiantes.
-- `015_student_self_exit.sql`: salida directa del estudiante autorizado.
-
-## Limitaciones conocidas
-
-- El badge `NEW` no tiene persistencia server-side; se apoya en `localStorage`.
-- PIN temporal, MFA operativo y notificaciones externas están preparados conceptualmente, pero no completados como flujo productivo.
-- La lectura QR por cámara puede evolucionar con `html5-qrcode`; hoy existe validación por payload pegado/escaneado.
-- La notificacion al apoderado se refleja como trazabilidad visible; falta integracion con canales externos.
+- No existe asignación docente–curso ni distinción entre profesor jefe y ayudante.
+- No existe historial integral con filtros avanzados; se muestran eventos recientes según el rol.
+- El lector QR depende del payload pegado o escaneado externamente.
+- No hay MFA operativo, biometría, push ni SMS.
+- El estado visual `NEW` utiliza almacenamiento local y no una tabla persistente de lecturas.
+- Algunos CRUD administrativos y validaciones de horario permanecen parciales.

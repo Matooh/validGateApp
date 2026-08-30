@@ -23,9 +23,9 @@ type StudentRelationshipGroup = {
 };
 
 const RELATION_TYPE_OPTIONS = [
-  { value: 'APODERADO_PRINCIPAL', label: 'Apoderado principal' },
-  { value: 'APODERADO', label: 'Apoderado' },
-  { value: 'RETIRADOR_AUTORIZADO', label: 'Retirador autorizado' },
+  { value: 'APODERADO_PRINCIPAL', label: 'Apoderado Primario' },
+  { value: 'APODERADO', label: 'Apoderado Primario' },
+  { value: 'RETIRADOR_AUTORIZADO', label: 'Apoderado Secundario' },
 ] as const;
 
 function relationshipLabel(value: string) {
@@ -135,7 +135,7 @@ export function GuardianRelationshipsList({ relationships }: { relationships: Gu
       </div>
       <div>
         <label htmlFor="relationship-search" className="mb-2 block text-sm font-medium text-slate-700">Buscar relaciones</label>
-        <input id="relationship-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nombre de estudiante o apoderado" className="w-full rounded-xl border border-slate-300 px-4 py-3" />
+        <input id="relationship-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nombre de estudiante o apoderado vinculado" className="w-full rounded-xl border border-slate-300 px-4 py-3" />
         <p className="mt-2 text-xs text-slate-500" aria-live="polite">{countLabel(filteredGroups.length, 'estudiante', 'estudiantes')} · {countLabel(filteredRelationshipCount, 'vínculo', 'vínculos')}</p>
       </div>
 

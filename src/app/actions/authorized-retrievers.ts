@@ -28,7 +28,7 @@ function parseLocalDateTime(value: string, offsetMinutes: number): Date | null {
 export async function inviteAuthorizedRetiradorAction(formData: FormData) {
   const { profile } = await requireUser();
   if (!profile || !['ADMIN', 'APODERADO'].includes(profile.role)) {
-    redirectWithMessage('error', 'No tienes permisos para autorizar retiradores.');
+    redirectWithMessage('error', 'No tienes permisos para autorizar Apoderados Secundarios.');
   }
 
   const studentId = Number(formData.get('student_id'));
@@ -40,6 +40,7 @@ export async function inviteAuthorizedRetiradorAction(formData: FormData) {
   const timezoneOffset = Number(formData.get('timezone_offset_minutes'));
   const validFromIso = String(formData.get('valid_from_iso') ?? '');
   const validUntilIso = String(formData.get('valid_until_iso') ?? '');
+  const authorizationConfirmed = formData.get('confirm_existing_retriever_authorization') === 'on';
   const validFrom = validFromIso ? new Date(validFromIso) : parseLocalDateTime(String(formData.get('valid_from') ?? ''), timezoneOffset);
   const validUntil = validUntilIso ? new Date(validUntilIso) : parseLocalDateTime(String(formData.get('valid_until') ?? ''), timezoneOffset);
 
@@ -47,7 +48,7 @@ export async function inviteAuthorizedRetiradorAction(formData: FormData) {
     !Number.isInteger(studentId) || studentId <= 0 || !firstName || !lastName
     || !/^\S+@\S+\.\S+$/.test(email) || !rut || !validFrom || !validUntil
     || Number.isNaN(validFrom.getTime()) || Number.isNaN(validUntil.getTime())
-    || validUntil <= validFrom || validUntil <= new Date()
+    || validUntil <= validFrom || validUntil <= new Date() || !authorizationConfirmed
   ) {
     redirectWithMessage('error', 'Revisa los datos y el período de vigencia de la autorización.');
   }
@@ -144,7 +145,7 @@ export async function inviteAuthorizedRetiradorAction(formData: FormData) {
   });
   const linkStatus = (data as LinkResult | null)?.status;
   if (linkStatus === 'already_guardian') {
-    redirectWithMessage('info', 'Esa persona ya está vinculada como apoderado del estudiante.');
+    redirectWithMessage('info', 'Esa persona ya está vinculada como Apoderado Primario del estudiante.');
   }
   if (linkStatus === 'authorization_exists') {
     redirectWithMessage('info', 'Ya existe una autorización vigente o futura para esa persona y estudiante.');

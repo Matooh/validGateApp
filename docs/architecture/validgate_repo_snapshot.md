@@ -2,7 +2,7 @@
 
 Fecha de inspección original: 2026-07-19
 
-Actualización operativa: 2026-08-22. La arquitectura de dominio de este snapshot
+Actualización operativa: 2026-08-28. La arquitectura de dominio de este snapshot
 se conserva como referencia histórica; para ejecución y pruebas prevalecen el
 código actual, `README.md`, `docs/DEMO_LOCAL.md` y `reports/README.md`.
 Base de evidencia: repositorio local; no se consultó ni alteró una instancia de Supabase.
@@ -18,7 +18,7 @@ Hay flujos operativos de evento manual, QR opaco temporal y de uso único, solic
 El esquema y las reglas de seguridad evolucionan mediante 27 migraciones; la existencia en una base desplegada debe comprobarse en cada ambiente.
 RLS, triggers y RPC concentran reglas críticas, incluida la serialización de confirmaciones QR mediante bloqueos `FOR UPDATE`.
 El avance es funcional pero parcial: no hay CRUD completo de estudiantes, cursos ni usuarios.
-El PIN dual y los retiradores temporales están implementados; MFA, biometría y notificaciones externas continúan fuera del flujo operativo.
+El PIN dual y los Apoderados Secundarios temporales están implementados; MFA, biometría y notificaciones externas continúan fuera del flujo operativo.
 La aprobación de solicitud y creación de autorización usa dos escrituras no transaccionales.
 Existe una suite Playwright ejecutable y un smoke de demo no destructivo.
 La validación académica usa una build Next.js local con Supabase Cloud; Vercel se conserva como evolución futura.
@@ -33,11 +33,11 @@ La validación académica usa una build Next.js local con Supabase Cloud; Vercel
 | Aplicación | `src/app/` | Encontrado | 8 páginas/rutas principales, 5 archivos de Server Actions y un Route Handler. |
 | UI | `src/components/` | Encontrado | Componentes cliente y de presentación. |
 | Seguridad/apoyo | `src/lib/`, `src/middleware.ts` | Encontrado | Sesión, permisos, clientes Supabase, mensajes y validadores RUT/teléfono. |
-| Base de datos | `supabase/migrations/001_init.sql` a `027_fix_confirm_guardian_pickup_request_id.sql` | Encontrado | Esquema, RLS y RPC para accesos, PIN dual y retiradores temporales. |
+| Base de datos | `supabase/migrations/001_init.sql` a `027_fix_confirm_guardian_pickup_request_id.sql` | Encontrado | Esquema, RLS y RPC para accesos, PIN dual y Apoderados Secundarios temporales. |
 | Tipos generados de Supabase | — | No encontrado | No hay `database.types.ts` ni equivalente. |
 | Tests ejecutables | `e2e/`, `playwright.config.ts`, `playwright.demo.config.ts` | Encontrado | Suite funcional con preparación aislada y smoke de demo sin Service Role. |
-| Plan de pruebas | `reports/plan_pruebas_funcionales_validgate.md` | Actualizado | 62 escenarios; 28 IDs poseen alguna automatización Playwright. |
-| Documentación vigente | `README.md`, `docs/validgate_sistema_actual.md` | Encontrado | Útil, pero contiene afirmaciones más amplias que el código. |
+| Plan de pruebas | `reports/plan_pruebas_funcionales_validgate.md` | Actualizado | 47 escenarios poseen automatización Playwright y un ID único. |
+| Documentación vigente | `README.md`, `docs/validgate_sistema_actual.md` | Actualizada | Distingue vocabulario visible e identificadores técnicos. |
 | Despliegue | `docs/DEMO_LOCAL.md`, `scripts/validgate-demo.sh` | Verificado localmente | Build de producción local y Supabase Cloud; Vercel es una alternativa futura. |
 | CSV de esquema | — | No encontrado | No fue posible comparar CSV con migraciones. |
 
@@ -125,10 +125,10 @@ Actor humano
 |---|---|---|---|---|
 | Administrador | `AppRole`, `permissions.ts`, RLS | Dashboard, porterías, QR, editar estudiante, política institucional | Misma institución; administración CRUD amplia no existe | Rol autenticado, parcial |
 | Porterías | mismas fuentes, `guard/page.tsx` | Buscar, validar QR, registrar ingreso/salida/retiro, ver eventos | Misma institución | Rol autenticado, implementado |
-| Docente | enum/permisos/RLS | Dashboard, estudiantes/cursos/asistencia | Sin módulo propio; `requireStaff` lo admite, pero `view_guard_module` lo bloquea | Rol autenticado, parcial |
-| Apoderado | RLS, dashboard, acciones de autorización | Vincular/desvincular, ver eventos, generar QR, responder solicitudes | Solo vínculos propios | Rol autenticado, implementado |
+| Docente | enum/permisos/RLS | Dashboard, estudiantes/cursos/asistencia y trazabilidad institucional permitida | Sin módulo propio ni relación docente–curso; dos docentes de la institución comparten alcance | Rol autenticado, parcial |
+| Apoderado Primario | RLS, dashboard, acciones de autorización | Vincular/desvincular, ver eventos, generar QR, responder solicitudes | Solo vínculos propios; rol técnico `APODERADO` | Rol autenticado, implementado |
 | Estudiante | `student_profiles`, dashboard, RPC salida | Ver estado/horario/vínculos, QR, solicitar/confirmar salida | Un perfil por estudiante; no autoriza su propio retiro | Rol autenticado, implementado |
-| Retirador autorizado | `profiles`, `guardian_students`, permisos y dashboard | Recibe invitación, consulta estudiantes asignados, solicita retiro y presenta PIN | Solo vínculos vigentes; sin contingencia manual | Rol autenticado, implementado |
+| Apoderado Secundario | `profiles`, `guardian_students`, permisos y dashboard | Recibe invitación, consulta estudiantes asignados, solicita retiro y presenta PIN | Solo vínculos vigentes; sin contingencia manual | Rol autenticado, implementado como `RETIRADOR_AUTORIZADO` |
 | Supabase | clientes y migraciones | Auth, persistencia, RPC/RLS | Servicio externo | Servicio externo |
 
 ## 7. Requerimientos funcionales observables
@@ -140,7 +140,7 @@ Actor humano
 | RF-OBS-03 | Gestión de estudiantes | `students/[id]`, `updateStudentAction` | Consulta/edición parcial | Parcialmente implementada |
 | RF-OBS-04 | Gestión de cursos | `guard`, `students/[id]` | Solo consulta | Parcialmente implementada |
 | RF-OBS-05 | Vinculación estudiante-apoderado | `linkStudentByCodeAction`, `guardian_students` | RPC `link_student_by_code` es invocada | Parcialmente implementada; definición RPC no está en migraciones |
-| RF-OBS-06 | Retiradores autorizados | `links`, `authorized-retrievers.ts`, `guardian_students` | Alta/reutilización, RUT, vigencia y revocación | Implementada |
+| RF-OBS-06 | Apoderados Secundarios | `links`, `authorized-retrievers.ts`, `guardian_students` | Alta/reutilización, RUT, vigencia y revocación | Implementada |
 | RF-OBS-07 | Ingreso/salida manual | `recordAccessEventAction` | Inserción auditable y trigger de estado | Implementada |
 | RF-OBS-08 | Retiro | dashboard, cola de portería y RPC de retiro | PIN dual, revocación, confirmación y evento `RETIRO_AUTORIZADO` | Implementada |
 | RF-OBS-09 | Retiro anticipado | documentos/reason | No hay caso/UI específico | Solo documentada |
@@ -152,7 +152,7 @@ Actor humano
 | RF-OBS-15 | Notificaciones | toast y cards | Solo feedback in-app; sin servicio/canal externo | Parcialmente implementada |
 | RF-OBS-16 | Anulación | — | Sin campos, acción ni flujo | No encontrada |
 | RF-OBS-17 | Observaciones | `access_events.notes` | Alta de nota; no edición posterior | Parcialmente implementada |
-| RF-OBS-18 | Intentos fallidos | eventos manuales rechazados/logs | QR inválido no se persiste en tabla | Parcialmente implementada |
+| RF-OBS-18 | Intentos fallidos | eventos manuales rechazados y PIN dual | El PIN aplica límite, bloqueo y vencimiento; QR inválido no se persiste como evento | Implementada para PIN; parcial para auditoría general |
 
 ## 8. Casos de uso candidatos
 
@@ -171,7 +171,7 @@ Actor humano
 - Registrar contingencia manual — `<<extend>>` Registrar evento, porque ocurre solo al faltar dispositivo.
 - Consultar eventos recientes — asociación.
 
-### Apoderado
+### Apoderado Primario
 
 - Vincular/desvincular estudiante — asociación; vincular incluye Validar código.
 - Consultar estado e historial — asociación.
@@ -185,7 +185,7 @@ Actor humano
 - Solicitar autorización de salida — asociación; incluye Verificar ingreso activo y apoderado vinculado.
 - Registrar salida autónoma — asociación; incluye Verificar permiso, estado y QR vigente.
 
-### Retirador autorizado
+### Apoderado Secundario
 
 - Consultar exclusivamente estudiantes con autorización temporal vigente.
 - Solicitar el retiro y recibir su PIN después de la aceptación del estudiante.
@@ -201,7 +201,7 @@ Actor humano
 | Course | Agrupación académica | 1 Institution; 0..* Student/Schedule | `courses` |
 | Guardian | Vista conceptual de UserProfile con rol APODERADO | 0..* Student mediante GuardianStudent | `profiles`, `guardian_students` |
 | GuardianStudent | Tabla puente con relationType | 1 Guardian–1 Student por fila | `guardian_students` |
-| AuthorizedPerson | Retirador; nombre, RUT/documento, teléfono, parentesco | 1 Institution; 0..* Authorization | `authorized_people` |
+| AuthorizedPerson | Apoderado Secundario; nombre, RUT/documento, teléfono, parentesco | 1 Institution; 0..* Authorization | `authorized_people` |
 | Authorization | Autoriza persona para estudiante y vigencia | 1 Student, 1 AuthorizedPerson, 1 Guardian | `authorizations` |
 | ExitPermission | Solicitud y autorización temporal de salida | Student/Guardian 1; autorización 0..1 por solicitud | `authorization_requests`, `student_exit_authorizations` |
 | Schedule | Bloque de horario | 1 Course; 0..* AttendanceBlock | `schedule_blocks` |
@@ -270,18 +270,18 @@ Triggers: creación automática de perfil; `updated_at` en perfiles/estudiantes/
 
 Alternativa QR: `QrCredentialValidator` → `validateStudentQrCredential` → `confirmStudentQrAccessEvent` → RPC con bloqueos → credencial usada + evento + trigger. No existe notificación externa.
 
-### 12.2 Retiro por persona autorizada
+### 12.2 Retiro por Apoderado Secundario
 
 | Orden | Participante | Acción o mensaje | Archivo / función | Resultado |
 |---:|---|---|---|---|
-| 1 | Apoderado | Registra o reutiliza retirador y asigna estudiante/vigencia | `/links`, `inviteAuthorizedRetiradorAction` | Vínculo temporal vigente |
-| 2 | Retirador | Solicita el retiro | dashboard, `create_guardian_pickup_request` | Notificación al estudiante |
+| 1 | Apoderado Primario | Registra o reutiliza al Apoderado Secundario y asigna estudiante/vigencia | `/links`, `inviteAuthorizedRetiradorAction` | Vínculo temporal vigente |
+| 2 | Apoderado Secundario | Solicita el retiro | dashboard, `create_guardian_pickup_request` | Notificación al estudiante |
 | 3 | Estudiante | Acepta la solicitud | dashboard, `respond_guardian_pickup_request` | Dos PIN diferentes |
-| 4 | Portería | Valida PIN del retirador y estudiante | `/guard`, `validate_guardian_pickup_pin` | Ambos validados |
-| 5 | Portería | Confirma el retiro efectivo | `confirm_guardian_pickup` | Evento `SALIDA/RETIRO_AUTORIZADO` |
-| 6 | Apoderado | Puede revocar antes de completar | `revoke_authorized_retirador_link` | Retiro cancelado y PIN invalidados |
+| 4 | Portería | Valida PIN del Apoderado Secundario y estudiante | `/guard`, `validate_guardian_pickup_pin` | Ambos validados |
+| 5 | Portería | Valida el segundo PIN; el servidor completa el retiro automáticamente | `validate_guardian_pickup_pin` → `confirm_guardian_pickup` | Toast nominal y evento `SALIDA/RETIRO_AUTORIZADO` |
+| 6 | Apoderado Primario | Puede revocar antes de completar | `revoke_authorized_retirador_link` | Retiro cancelado y PIN invalidados |
 
-Alternativas verificadas por PF-RET-AUT-001 a 007: cuenta nueva o preexistente, vínculo revocado, cancelación inmediata, segundo consumo del PIN y estudiante fuera del alcance autorizado.
+Alternativas verificadas por PF-APO-SEC-001 a 005 y PF-APO-SEC-007: cuenta nueva o preexistente, vínculo revocado, cancelación inmediata y estudiante fuera del alcance autorizado.
 
 ### 12.3 Salida autónoma
 
@@ -387,7 +387,7 @@ Cámara/lector QR físico: no es nodo separado; sería capacidad del dispositivo
 
 ## 19. Trazabilidad
 
-`access_events` guarda estudiante, `actor_profile_id`, `recorded_by_profile_id`, persona autorizada opcional, tipo, tipo de salida, método, resultado, notas y `occurred_at`; también snapshot de política, fallo, autenticador requerido/presentado y columnas de contingencia. La acción manual actualmente expresa contingencia en `notes`, no en `access_mode`, `contingency_reason` y `contingency_note`, por lo que esas columnas quedan con valores por defecto/nulos.
+`access_events` guarda estudiante, `actor_profile_id`, `recorded_by_profile_id`, Apoderado Secundario opcional, tipo, tipo de salida, método, resultado, notas y `occurred_at`; también snapshot de política, fallo, autenticador requerido/presentado y columnas de contingencia. La acción manual actualmente expresa contingencia en `notes`, no en `access_mode`, `contingency_reason` y `contingency_note`, por lo que esas columnas quedan con valores por defecto/nulos.
 
 Solicitud/autorización guarda solicitante, apoderado, estado, razón, respuesta, fechas, expiración y consumo. Rechazos por política manual se persisten; rechazos QR y fallos de autenticación no se guardan como eventos. Anulación, usuario anulador y motivo: **No verificado en el repositorio**. La marca NEW es `localStorage`, no auditoría persistente.
 
@@ -395,14 +395,14 @@ Solicitud/autorización guarda solicitante, apoderado, estado, razón, respuesta
 
 | Tipo | Herramienta | Escenario | Archivo | Estado |
 |---|---|---|---|---|
-| Especificación funcional | Gherkin | RF01–RF14, incluidos PF-RET-AUT-001 a 007 | `reports/plan_pruebas_funcionales_validgate.md` | Actualizada |
-| E2E | Playwright | Autenticación, roles, vínculos, eventos, retiro y retirador temporal | `e2e/*.spec.ts` | 45 pruebas funcionales |
+| Especificación funcional | Gherkin | RF01–RF14, incluidos PF-APO-SEC-001 a 005 y PF-APO-SEC-007 | `reports/plan_pruebas_funcionales_validgate.md` | Actualizada |
+| E2E | Playwright | Autenticación, restricciones, vínculos, eventos, PIN dual, Apoderado Secundario y aislamiento de trazabilidad | `e2e/*.spec.ts` | 47 pruebas funcionales con 47 IDs únicos |
 | Smoke de demo | Playwright | Disponibilidad, ruta protegida y login | `e2e/demo-smoke.spec.ts` | Encontrada |
 | Unitarias | — | — | — | No encontradas |
 | Integración/RPC/RLS | — | — | — | No encontradas |
 | Fixtures/seeds | SQL | Datos demo | `002_seed.sql`, `003_seed_multi_institution.sql` | Seeds, no tests |
 
-Con evidencia Playwright: roles, restricciones de acceso, ingreso duplicado, salida autónoma, retiro con PIN dual, alta/reutilización/revocación de retiradores y bloqueo del segundo consumo de PIN. Continúan sin cobertura formal completa el aislamiento RLS directo, aprobación concurrente, expiraciones y regresiones de triggers.
+Con evidencia Playwright: roles, restricciones de acceso, ingreso duplicado, salida autónoma, retiro con PIN dual, alta/reutilización/revocación de Apoderados Secundarios y aislamiento de trazabilidad por familia, institución, vigencia y docente. Continúan sin cobertura de integración directa sobre todas las políticas RLS/RPC, aprobación concurrente, expiraciones temporales reales y regresiones de triggers.
 
 ## 21. Brechas detectadas
 
@@ -410,10 +410,10 @@ Con evidencia Playwright: roles, restricciones de acceso, ingreso duplicado, sal
 |---|---|
 | Alta | `link_student_by_code` es llamada por la app, pero su definición SQL no está en el repositorio. |
 | Alta | Aprobación y creación de permiso temporal no son transaccionales; puede quedar solicitud aprobada sin autorización. |
-| Alta | No hay pruebas automatizadas de RLS/RPC/flujos críticos. |
+| Alta | No hay pruebas de integración directa y exhaustiva para todas las políticas RLS y RPC; la cobertura actual es E2E desde la interfaz. |
 | Alta | Rechazos QR/intentos fallidos no quedan en auditoría persistente, pese al requerimiento documental. |
 | Alta | Registro manual realiza check-then-insert sin bloqueo atómico; condición de carrera posible. |
-| Media | PIN se selecciona como método, pero no existe credencial, expiración ni límite de intentos. |
+| Media | No existe cobertura automatizada completa para PIN incorrecto, vencido y bloqueado en todas sus variantes, aunque credencial, expiración e intentos están implementados. |
 | Media | Columnas normalizadas de contingencia no son escritas por la acción. |
 | Media | CRUD de estudiantes/cursos/usuarios/apoderados/autorizados está incompleto o ausente. |
 | Media | No hay horario aplicado a salidas/retiros pese a `schedule_blocks.exit_allowed`. |

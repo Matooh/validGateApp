@@ -1,5 +1,4 @@
 import {
-  confirmGuardianPickupFromForm,
   manuallyValidateGuardianPickupActorFromForm,
   rejectGuardianPickupAtGateFromForm,
   validateGuardianPickupPinFromForm,
@@ -13,7 +12,7 @@ const STATUS_LABELS: Record<string, string> = {
   BOTH_VALIDATED: 'Ambos validados',
   COMPLETED: 'Completado',
   REJECTED_BY_STUDENT: 'Rechazado por el estudiante',
-  CANCELLED_BY_GUARDIAN: 'Cancelado por el apoderado',
+  CANCELLED_BY_GUARDIAN: 'Cancelado por el apoderado responsable',
   CANCELLED_AUTHORIZATION_REVOKED: 'Cancelado por revocación de autorización',
   EXPIRED: 'Expirado',
   BLOCKED_BY_ATTEMPTS: 'Bloqueado por intentos',
@@ -28,7 +27,9 @@ function ActorValidation({
   actorType: 'GUARDIAN' | 'STUDENT';
 }) {
   const isGuardian = actorType === 'GUARDIAN';
-  const label = isGuardian ? 'Apoderado' : 'Estudiante';
+  const label = isGuardian
+    ? request.pinOnly ? 'Apoderado Secundario' : 'Apoderado Primario'
+    : 'Estudiante';
   const method = isGuardian ? request.guardianValidationMethod : request.studentValidationMethod;
   const failedAttempts = isGuardian ? request.guardianFailedAttempts : request.studentFailedAttempts;
 
@@ -89,6 +90,22 @@ function ActorValidation({
   );
 }
 
+function ValidatedActorSummary({
+  label,
+  method,
+}: {
+  label: 'Apoderado Primario' | 'Apoderado Secundario' | 'Estudiante';
+  method: 'PIN' | 'MANUAL' | null;
+}) {
+  if (!method) return null;
+  return (
+    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+      <p className="text-sm font-semibold text-emerald-800">{label}: validado</p>
+      <p className="mt-1 text-xs text-emerald-700">Método: {method === 'PIN' ? 'PIN' : 'Manual controlado'}</p>
+    </div>
+  );
+}
+
 export function GuardianPickupQueue({ requests }: { requests: GuardianPickupRequest[] }) {
   const operationalRequests = requests.filter((request) =>
     ['PENDING_STUDENT_RESPONSE', 'PENDING_GUARD_VALIDATION', 'BOTH_VALIDATED'].includes(request.status),
@@ -101,7 +118,7 @@ export function GuardianPickupQueue({ requests }: { requests: GuardianPickupRequ
     <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
       <div>
         <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">Retiros con validación dual</h2>
-        <p className="mt-1 text-sm text-slate-500">Cola institucional actualizada automáticamente. Portería confirma únicamente la salida efectiva.</p>
+        <p className="mt-1 text-sm text-slate-500">Cola institucional actualizada automáticamente. La segunda validación completa el retiro y avisa a portería.</p>
       </div>
 
       {operationalRequests.length ? (
@@ -135,14 +152,6 @@ export function GuardianPickupQueue({ requests }: { requests: GuardianPickupRequ
                 )}
 
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                  {request.status === 'BOTH_VALIDATED' ? (
-                    <form action={confirmGuardianPickupFromForm}>
-                      <input type="hidden" name="request_id" value={request.requestId} />
-                      <PendingSubmitButton pendingLabel="Confirmando..." className="w-full rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 sm:w-auto">
-                        Confirmar retiro efectivo
-                      </PendingSubmitButton>
-                    </form>
-                  ) : null}
                   {readyForValidation ? (
                     <details className="rounded-xl border border-rose-200 px-3 py-2">
                       <summary className="cursor-pointer text-sm font-semibold text-rose-700">Rechazar en portería</summary>
@@ -176,15 +185,26 @@ export function GuardianPickupQueue({ requests }: { requests: GuardianPickupRequ
           <summary className="cursor-pointer text-sm font-semibold text-slate-700">Retiros finalizados recientemente</summary>
           <div className="mt-3 divide-y divide-slate-100">
             {recentClosedRequests.map((request) => (
-              <div key={request.requestId} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
-                <div>
-                  <p className="font-medium text-slate-900">{request.studentName}</p>
-                  <p className="text-slate-500">{request.guardianName}</p>
+              <div key={request.requestId} className="py-3 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="font-medium text-slate-900">{request.studentName}</p>
+                    <p className="text-slate-500">{request.guardianName}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium text-slate-700">{STATUS_LABELS[request.status] ?? request.status}</p>
+                    <p className="text-xs text-slate-400">{new Date(request.updatedAt).toLocaleString('es-CL')}</p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-medium text-slate-700">{STATUS_LABELS[request.status] ?? request.status}</p>
-                  <p className="text-xs text-slate-400">{new Date(request.updatedAt).toLocaleString('es-CL')}</p>
-                </div>
+                {request.guardianValidationMethod || request.studentValidationMethod ? (
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <ValidatedActorSummary
+                      label={request.pinOnly ? 'Apoderado Secundario' : 'Apoderado Primario'}
+                      method={request.guardianValidationMethod}
+                    />
+                    <ValidatedActorSummary label="Estudiante" method={request.studentValidationMethod} />
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>

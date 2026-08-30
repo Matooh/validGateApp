@@ -87,7 +87,7 @@ function getDashboardCopy(role?: string | null, firstName?: string | null, email
 
   if (role === 'APODERADO') {
     return {
-      eyebrow: 'Apoderado',
+      eyebrow: 'Apoderado Primario',
       title: `Hola, ${name}.`,
       description:
         'Consulta estudiantes vinculados, revisa su trazabilidad y gestiona credenciales o autorizaciones cuando corresponda.',
@@ -99,9 +99,9 @@ function getDashboardCopy(role?: string | null, firstName?: string | null, email
 
   if (role === 'RETIRADOR_AUTORIZADO') {
     return {
-      eyebrow: 'Retirador autorizado',
+      eyebrow: 'Apoderado Secundario',
       title: `Hola, ${name}.`,
-      description: 'Consulta tus autorizaciones vigentes e inicia un retiro cuando corresponda.',
+      description: 'Consulta tus autorizaciones temporales vigentes e inicia un retiro cuando corresponda.',
       primaryTitle: 'Estudiantes autorizados',
       primaryDescription: 'Solo se muestran estudiantes con una autorización vigente.',
       recentDescription: 'Eventos recientes de los estudiantes que puedes retirar.',
@@ -114,8 +114,8 @@ function getDashboardCopy(role?: string | null, firstName?: string | null, email
       title: `Hola, ${name}.`,
       description:
         'Consulta tus métodos de autenticación, revisa tus responsables vinculados y presenta credenciales para portería.',
-      primaryTitle: 'Apoderados',
-      primaryDescription: 'Información sobre apoderados y personas responsables.',
+      primaryTitle: 'Apoderados vinculados',
+      primaryDescription: 'Información sobre apoderados primarios y secundarios vinculados.',
       recentDescription: 'Últimos eventos registrados para tu perfil.',
     };
   }
@@ -174,15 +174,15 @@ function getInstitutionName(institutions: unknown) {
 function getGuardianRelationDisplay(relationType?: string | null) {
   if (relationType === 'RETIRADOR_AUTORIZADO') {
     return {
-      label: 'Retirador autorizado',
-      badge: 'Retirador autorizado',
+      label: 'Apoderado Secundario',
+      badge: 'Apoderado Secundario',
       className: 'bg-slate-100 text-slate-700',
     };
   }
 
   return {
-    label: 'Apoderado',
-    badge: 'Apoderado',
+    label: 'Apoderado Primario',
+    badge: 'Apoderado Primario',
     className: 'bg-sky-100 text-sky-700',
   };
 }
@@ -202,7 +202,7 @@ export default async function DashboardPage({
     : params.kind === 'error'
       ? 'danger'
     : toastMessage
-      ? /no se pudo|no tienes|debes|rechaz|no encontramos|no hay|invalid|forbidden/i.test(toastMessage)
+      ? /no se pudo|no tienes|no est[aá] autorizado|debes|rechaz|no encontramos|no hay|invalid|forbidden/i.test(toastMessage)
         ? 'danger'
         : /atencion|advert|existe|pendiente/i.test(toastMessage)
           ? 'warning'
@@ -315,7 +315,7 @@ export default async function DashboardPage({
 
   let accessEventsQuery = supabase
     .from('access_events')
-    .select('id, event_type, exit_kind, validation_kind, result, occurred_at, notes, students(id, first_name, last_name)')
+    .select('id, event_type, exit_kind, validation_kind, result, occurred_at, notes, policy_snapshot, students(id, first_name, last_name)')
     .order('occurred_at', { ascending: false })
     .limit(8);
 
@@ -367,7 +367,7 @@ export default async function DashboardPage({
         validation_kind: 'SOLICITUD',
         result: ar.status,
         occurred_at: ar.responded_at ?? ar.requested_at,
-        notes: ar.reason ?? (isPending ? 'Esperando respuesta del apoderado.' : requestLabel),
+        notes: ar.reason ?? (isPending ? 'Esperando respuesta del Apoderado Primario.' : requestLabel),
         students: ar.students,
         isAuthRequest: true,
         isPendingAuthorizationRequest: isPending,
@@ -391,7 +391,9 @@ export default async function DashboardPage({
         : request.status === 'PENDING_GUARD_VALIDATION'
           ? 'Pendiente de validación presencial en portería.'
           : request.status === 'BOTH_VALIDATED'
-            ? 'Ambas personas validadas; falta confirmar la salida efectiva.'
+            ? 'Ambas personas validadas; completando el retiro automáticamente.'
+            : request.status === 'REJECTED_BY_STUDENT'
+              ? 'Solicitud de retiro rechazada por el estudiante.'
             : `Estado final: ${request.status}`,
       students: { id: request.studentId, first_name: request.studentName, last_name: '' },
       isAuthRequest: true,
@@ -537,7 +539,7 @@ export default async function DashboardPage({
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="font-semibold text-slate-900">{request.studentName}</p>
-                      <p className="mt-1 text-sm text-slate-500">{request.status === 'PENDING_STUDENT_RESPONSE' ? 'Esperando respuesta del estudiante' : request.status === 'BOTH_VALIDATED' ? 'Ambos validados; portería debe confirmar la salida' : 'Pendiente de validación en portería'}</p>
+                      <p className="mt-1 text-sm text-slate-500">{request.status === 'PENDING_STUDENT_RESPONSE' ? 'Esperando respuesta del estudiante' : request.status === 'BOTH_VALIDATED' ? 'Ambos validados; completando retiro' : 'Pendiente de validación en portería'}</p>
                     </div>
                     <form action={cancelGuardianPickupRequestFromForm}>
                       <input type="hidden" name="request_id" value={request.requestId} />
@@ -546,7 +548,9 @@ export default async function DashboardPage({
                   </div>
                   {pin ? (
                     <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-center">
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">Tu PIN de apoderado</p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">
+                        Tu PIN de {profile?.role === 'RETIRADOR_AUTORIZADO' ? 'Apoderado Secundario' : 'Apoderado Primario'}
+                      </p>
                       <p className="mt-2 font-mono text-3xl font-bold tracking-[0.35em] text-slate-900">{pin.pin}</p>
                       <p className="mt-2 text-xs text-slate-500">Válido hasta {new Date(pin.expiresAt).toLocaleTimeString('es-CL')}. No lo compartas con el estudiante.</p>
                     </div>
@@ -629,7 +633,7 @@ export default async function DashboardPage({
                       Solicitud de autorización de salida
                     </h3>
                     <p className="mt-1 text-sm text-slate-500">
-                      Pide autorización a tu apoderado. Si acepta, ambos deberán presentar sus PIN en portería
+                      Pide autorización a tu Apoderado Primario. Si acepta, ambos deberán presentar sus PIN en portería
                       antes de que se registre el retiro.
                     </p>
                     <p className="mt-2 text-sm text-slate-500">
@@ -651,7 +655,7 @@ export default async function DashboardPage({
                 </div>
                 {studentHasPendingAuthorizationRequest ? (
                   <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    Ya existe una solicitud de retiro vigente. Espera la respuesta de tu apoderado antes de crear una nueva.
+                    Ya existe una solicitud de retiro vigente. Espera la respuesta de tu Apoderado Primario antes de crear una nueva.
                   </p>
                 ) : null}
                 <label htmlFor="exit_reason" className="mt-4 block text-sm font-medium text-slate-700">
@@ -734,7 +738,7 @@ export default async function DashboardPage({
                     ))
                   ) : (
                     <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-slate-500">
-                      No hay apoderados o responsables vinculados para mostrar.
+                      No hay apoderados primarios o secundarios vinculados para mostrar.
                     </div>
                   )}
                 </div>
@@ -752,7 +756,7 @@ export default async function DashboardPage({
                           <h3 className="break-words text-lg font-semibold text-slate-900">
                             {student.first_name} {student.last_name}
                           </h3>
-                          <p className="mt-1 break-words text-sm text-slate-500">Relación: {item.relation_type ?? 'APODERADO'}</p>
+                          <p className="mt-1 break-words text-sm text-slate-500">Relación: {getGuardianRelationDisplay(item.relation_type).label}</p>
                           <p className="mt-1 break-words text-sm text-slate-500">
                             Institución: {institutionName ?? 'Sin institución'}
                           </p>
@@ -795,7 +799,7 @@ export default async function DashboardPage({
                 <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-slate-500">
                   {['APODERADO', 'RETIRADOR_AUTORIZADO'].includes(profile?.role ?? '')
                     ? 'No tienes estudiantes vinculados para mostrar.'
-                    : 'No hay apoderados o responsables vinculados para mostrar.'}
+                    : 'No hay apoderados primarios o secundarios vinculados para mostrar.'}
                 </div>
               )}
             </div>
@@ -937,6 +941,12 @@ export default async function DashboardPage({
                         <div className="mt-3 break-words rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">
                           <span className="font-medium text-slate-900">Descripción:</span> {event.notes}
                         </div>
+                      ) : null}
+                      {!event.isAuthRequest && event.exit_kind === 'RETIRO_AUTORIZADO' && event.policy_snapshot?.guardian_name ? (
+                        <p className="mt-2 break-words text-sm text-slate-600">
+                          <span className="font-medium text-slate-900">Retirado por:</span>{' '}
+                          {event.policy_snapshot.guardian_name}
+                        </p>
                       ) : null}
                       <p className="mt-2 break-words text-xs text-slate-400">{new Date(event.occurred_at).toLocaleString('es-CL')}</p>
                     </RecentEventCard>

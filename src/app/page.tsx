@@ -34,12 +34,6 @@ export default async function LoginPage({
               Control de ingreso y salida estudiantil
             </p>
           </div>
-
-          <div className="space-y-4">
-            <span className="inline-flex rounded-full bg-sky-100 px-4 py-1 text-sm font-medium text-sky-700">
-              MVP validado en entorno local controlado
-            </span>
-          </div>
         </section>
 
         <section className="w-full">
@@ -48,7 +42,7 @@ export default async function LoginPage({
           </div>
 
           <p className="mt-6 text-center text-sm text-slate-500">
-            Version 1.0.0 · Fecha de lanzamiento base 2024-06-01
+            Version 1.0.0
           </p>
         </section>
       </div>

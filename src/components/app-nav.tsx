@@ -19,7 +19,7 @@ export function AppNav({ role, displayName }: AppNavProps) {
       ? [{ href: '/students/link', label: 'Vincular estudiante', icon: 'student' as const }]
       : []),
     ...(hasPermission(role ?? null, 'manage_users')
-      ? [{ href: '/admin/relationships', label: 'Vinculación Apoderado-Estudiante', icon: 'student' as const }]
+      ? [{ href: '/admin/relationships', label: 'Vinculación Apoderado Primario-Estudiante', icon: 'student' as const }]
       : []),
     ...(hasPermission(role ?? null, 'view_guard_module')
       ? [{ href: '/guard', label: 'Portería', icon: 'guard' as const }]

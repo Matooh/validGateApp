@@ -74,6 +74,22 @@ function refreshPickupViews() {
   revalidatePath('/authentications');
 }
 
+function redirectWithCompletedPickup(request?: GuardianPickupRequest): never {
+  const message = request
+    ? `Validación OK. Por favor, valida que el alumno "${request.studentName}" sea retirado por "${request.guardianName}".`
+    : getPickupMessage('PICKUP_COMPLETED');
+  redirect(`/guard?message=${encodeURIComponent(message)}&toast=pickup-completed`);
+}
+
+async function finishPickupWhenBothActorsAreValidated(
+  requestId: string,
+  validationCode?: string | null,
+): Promise<RpcRow | null> {
+  if (!['PICKUP_PIN_VALIDATED', 'PICKUP_MANUAL_VALIDATED'].includes(validationCode ?? '')) return null;
+  const completion = await executePickupRpc('confirm_guardian_pickup', { p_request_id: requestId });
+  return completion.message_code === 'PICKUP_NOT_READY' ? null : completion;
+}
+
 async function executePickupRpc(
   functionName: string,
   params: Record<string, unknown>,
@@ -141,6 +157,24 @@ export async function listMyPickupPins(requestIds: string[]): Promise<MyPickupPi
   return results.filter((item): item is MyPickupPin => Boolean(item));
 }
 
+export async function getMyActivePickupCredentials(): Promise<{
+  requests: GuardianPickupRequest[];
+  pins: MyPickupPin[];
+}> {
+  const requests = (await listGuardianPickupRequests()).filter((request) =>
+    ['PENDING_STUDENT_RESPONSE', 'PENDING_GUARD_VALIDATION', 'BOTH_VALIDATED'].includes(
+      request.status,
+    ),
+  );
+  const pins = await listMyPickupPins(
+    requests
+      .filter((request) => request.status !== 'PENDING_STUDENT_RESPONSE')
+      .map((request) => request.requestId),
+  );
+
+  return { requests, pins };
+}
+
 export async function createGuardianPickupRequestFromForm(formData: FormData) {
   const studentId = Number(formData.get('student_id'));
   if (!Number.isInteger(studentId) || studentId <= 0) redirectWithPickupMessage('/dashboard', 'PICKUP_NOT_ALLOWED');
@@ -170,23 +204,33 @@ export async function cancelGuardianPickupRequestFromForm(formData: FormData) {
 
 export async function validateGuardianPickupPinFromForm(formData: FormData) {
   const actorType = String(formData.get('actor_type') ?? '');
+  const requestId = String(formData.get('request_id') ?? '');
+  const request = (await listGuardianPickupRequests()).find((item) => item.requestId === requestId);
   const result = await executePickupRpc('validate_guardian_pickup_pin', {
-    p_request_id: String(formData.get('request_id') ?? ''),
+    p_request_id: requestId,
     p_actor_type: actorType,
     p_pin: String(formData.get('pin') ?? '').trim(),
   });
   refreshPickupViews();
+  const completion = await finishPickupWhenBothActorsAreValidated(requestId, result.message_code);
+  if (completion?.message_code === 'PICKUP_COMPLETED') redirectWithCompletedPickup(request);
+  if (completion) redirectWithPickupMessage('/guard', completion.message_code);
   redirectWithPickupMessage('/guard', result.message_code, `pin-${actorType.toLowerCase()}`);
 }
 
 export async function manuallyValidateGuardianPickupActorFromForm(formData: FormData) {
+  const requestId = String(formData.get('request_id') ?? '');
+  const request = (await listGuardianPickupRequests()).find((item) => item.requestId === requestId);
   const result = await executePickupRpc('manually_validate_guardian_pickup_actor', {
-    p_request_id: String(formData.get('request_id') ?? ''),
+    p_request_id: requestId,
     p_actor_type: String(formData.get('actor_type') ?? ''),
     p_reason: String(formData.get('reason') ?? '').trim(),
     p_note: String(formData.get('note') ?? '').trim(),
   });
   refreshPickupViews();
+  const completion = await finishPickupWhenBothActorsAreValidated(requestId, result.message_code);
+  if (completion?.message_code === 'PICKUP_COMPLETED') redirectWithCompletedPickup(request);
+  if (completion) redirectWithPickupMessage('/guard', completion.message_code);
   redirectWithPickupMessage('/guard', result.message_code);
 }
 

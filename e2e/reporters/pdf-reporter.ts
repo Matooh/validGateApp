@@ -26,6 +26,33 @@ function statusLabel(status: string) {
   return ({ passed: 'Aprobada', failed: 'Fallida', skipped: 'Omitida', timedOut: 'Tiempo agotado', interrupted: 'Interrumpida' } as Record<string, string>)[status] ?? status;
 }
 
+const REPORT_FAMILY_ORDER = [
+  'PF-AUTH',
+  'PF-ACC',
+  'PF-VIN',
+  'PF-VIN-ADM',
+  'PF-ING',
+  'PF-SAL',
+  'PF-SOL',
+  'PF-RET',
+  'PF-APO-SEC',
+  'PF-TRA',
+];
+
+function scenarioFamily(id: string) {
+  return id.replace(/-\d{3}[A-Z]?$/, '');
+}
+
+function compareRows(left: Row, right: Row) {
+  const leftRank = REPORT_FAMILY_ORDER.indexOf(scenarioFamily(left.id));
+  const rightRank = REPORT_FAMILY_ORDER.indexOf(scenarioFamily(right.id));
+  const normalizedLeftRank = leftRank === -1 ? REPORT_FAMILY_ORDER.length : leftRank;
+  const normalizedRightRank = rightRank === -1 ? REPORT_FAMILY_ORDER.length : rightRank;
+  return normalizedLeftRank - normalizedRightRank
+    || left.id.localeCompare(right.id, 'es', { numeric: true })
+    || left.title.localeCompare(right.title, 'es', { numeric: true });
+}
+
 export default class ValidGatePdfReporter implements Reporter {
   private rows: Row[] = [];
   private startedAt = new Date();
@@ -73,6 +100,7 @@ export default class ValidGatePdfReporter implements Reporter {
   async onEnd(result: FullResult) {
     const outputDir = path.resolve(process.cwd(), process.env.E2E_REPORT_DIR ?? 'reports');
     await fs.mkdir(outputDir, { recursive: true });
+    this.rows.sort(compareRows);
     const totals = {
       passed: this.rows.filter((row) => row.status === 'passed').length,
       failed: this.rows.filter((row) => ['failed', 'timedOut', 'interrupted'].includes(row.status)).length,
@@ -97,7 +125,7 @@ export default class ValidGatePdfReporter implements Reporter {
     <div class="cards"><div class="card"><div>Total</div><div class="value">${this.rows.length}</div></div><div class="card"><div>Aprobadas</div><div class="value">${totals.passed}</div></div><div class="card"><div>Fallidas</div><div class="value">${totals.failed}</div></div><div class="card"><div>Omitidas</div><div class="value">${totals.skipped}</div></div><div class="card"><div>Duración</div><div class="value">${(elapsed / 1000).toFixed(1)} s</div></div></div>
     <h2>Matriz de resultados</h2><table><thead><tr><th>ID</th><th>Escenario</th><th>RF</th><th>OE</th><th>Rol</th><th>Resultado</th><th>Duración</th></tr></thead><tbody>${tableRows}</tbody></table>
     ${failures ? `<h2>Detalle de fallos</h2>${failures}` : '<h2>Conclusión</h2><p>No se registraron fallos en esta ejecución.</p>'}
-    ${evidenceGallery ? `<h2 class="evidence-intro">Anexo de evidencias visuales</h2><p class="meta">Las imágenes documentan las etapas relevantes de cada caso. Los campos sensibles se enmascaran para proteger contraseñas, códigos, PIN y payloads de prueba.</p>${evidenceGallery}` : '<h2>Evidencias visuales</h2><p>No fue posible obtener capturas en esta ejecución.</p>'}
+    ${evidenceGallery ? `<h2 class="evidence-intro">Anexo de evidencias visuales</h2><p class="meta">Las imágenes documentan las etapas relevantes de cada caso. Las contraseñas y los payloads permanecen enmascarados; los códigos y PIN E2E solo se muestran cuando forman parte explícita de la evidencia funcional.</p>${evidenceGallery}` : '<h2>Evidencias visuales</h2><p>No fue posible obtener capturas en esta ejecución.</p>'}
     <footer>El reporte HTML interactivo y los artefactos técnicos de fallos se conservan junto con este archivo.</footer></body></html>`;
     const htmlPath = path.join(outputDir, 'VALIDGATE_resultados_e2e.html');
     await fs.writeFile(htmlPath, html, 'utf8');

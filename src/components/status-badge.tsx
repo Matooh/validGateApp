@@ -14,6 +14,7 @@ const BADGES: Record<string, BadgeDefinition> = {
   BOTH_VALIDATED: { label: 'Validaciones aprobadas', symbol: '✓', className: 'border-green-200 bg-green-100 text-green-800' },
   RECHAZADO: { label: 'Rechazado', symbol: '×', className: 'border-red-200 bg-red-100 text-red-800' },
   REJECTED: { label: 'Rechazado', symbol: '×', className: 'border-red-200 bg-red-100 text-red-800' },
+  REJECTED_BY_STUDENT: { label: 'Rechazado', symbol: '×', className: 'border-red-200 bg-red-100 text-red-800' },
   FALLIDO: { label: 'Fallido', symbol: '⚠', className: 'border-red-200 bg-red-100 text-red-800' },
   FAILED: { label: 'Fallido', symbol: '⚠', className: 'border-red-200 bg-red-100 text-red-800' },
   EXPIRED: { label: 'Vencido', symbol: '—', className: 'border-gray-200 bg-gray-100 text-gray-700' },

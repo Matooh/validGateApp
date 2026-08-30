@@ -1,90 +1,149 @@
-# Automatización E2E de VALIDGATE
+# Guía para ejecutar el plan E2E de VALIDGATE
 
-La suite automatiza 28 IDs funcionales mediante 45 pruebas Playwright, además de un smoke de demo. Variantes por rol o condición pueden compartir el mismo ID del plan Gherkin. Cada ejecución genera reporte HTML, JSON, JUnit, un resumen HTML imprimible y un PDF.
+Esta guía explica cómo preparar el ambiente, ejecutar las 47 pruebas funcionales y diagnosticar sus evidencias. La cobertura y las reglas de identificación se resumen en [README.md](README.md).
 
-## 1. Configurar variables locales
+> Ejecuta la suite únicamente contra un proyecto Supabase de testing. La preparación crea usuarios y modifica registros marcados con el namespace E2E.
 
-1. Copia `.env.e2e.example` como `.env.e2e.local`.
-2. Completa la URL y la `service_role` del proyecto Supabase de **testing**.
-3. Define correos y passwords ficticios para los cinco roles base. Las cuentas `RETIRADOR_AUTORIZADO` se crean de forma controlada durante sus casos E2E.
-4. Verifica que todos los correos contengan el valor de `E2E_EMAIL_MARKER` (por defecto, `e2e`).
-5. Cuando hayas revisado el proyecto de destino, cambia `E2E_ALLOW_REMOTE_MUTATIONS=true`.
-6. Aplica las migraciones hasta `027_fix_confirm_guardian_pickup_request_id.sql` antes de ejecutar los casos de retiro autorizado.
+## 1. Requisitos
 
-`.env.e2e.local` está ignorado por Git. La `service_role` nunca debe usarse en código del navegador, compartirse por chat ni subirse al repositorio.
+- Node.js y npm.
+- Chromium para Playwright.
+- Proyecto Supabase exclusivo para pruebas.
+- Clave secreta o `service_role`.
+- Migraciones `001` a `027` aplicadas.
+- Credenciales ficticias para `ADMIN`, `PORTERIA`, `DOCENTE`, `APODERADO` y `ESTUDIANTE`.
 
-## 2. Protección de los datos compartidos
+```powershell
+npm install
+npx playwright install chromium
+```
 
-La preparación no reutiliza los IDs `1`, `2` o `3` de los seeds históricos. Crea o reutiliza únicamente:
+## 2. Configurar `.env.e2e.local`
 
-- una institución llamada `VALIDGATE E2E <namespace>`;
-- un curso `Curso E2E <namespace>`;
-- dos estudiantes cuyos códigos comienzan con `E2E-`;
-- usuarios Auth marcados con `validgate_e2e=true` y el namespace configurado.
-
-Si un correo ya existe y no está marcado como E2E, el proceso no cambia su password ni su perfil. Solo se acepta si ya pertenece a la institución E2E y tiene el rol esperado; ante cualquier diferencia, la ejecución se detiene.
-
-Antes de cada prueba se eliminan solicitudes, PIN, notificaciones, QR y eventos pertenecientes exclusivamente a los dos estudiantes E2E. No se ejecutan eliminaciones por institución general, correo parcial ni IDs de los seeds existentes.
-
-## 3. Ejecutar
-
-Si VALIDGATE debe iniciarse localmente:
+Copia `.env.e2e.example` y completa como mínimo:
 
 ```env
 PLAYWRIGHT_BASE_URL=http://localhost:3000
 E2E_START_LOCAL_SERVER=true
+
+E2E_SUPABASE_URL=https://PROJECT_REF.supabase.co
+E2E_SUPABASE_SERVICE_ROLE_KEY=sb_secret_...
+E2E_ALLOW_REMOTE_MUTATIONS=true
+E2E_NAMESPACE=validgate-e2e
+E2E_EMAIL_MARKER=e2e
+
+E2E_ADMIN_EMAIL=...
+E2E_ADMIN_PASSWORD=...
+E2E_PORTERIA_EMAIL=...
+E2E_PORTERIA_PASSWORD=...
+E2E_DOCENTE_EMAIL=...
+E2E_DOCENTE_PASSWORD=...
+E2E_APODERADO_EMAIL=...
+E2E_APODERADO_PASSWORD=...
+E2E_ESTUDIANTE_EMAIL=...
+E2E_ESTUDIANTE_PASSWORD=...
 ```
 
-Para usar un despliegue de testing existente:
+Todos los correos deben contener `E2E_EMAIL_MARKER`. Si existe `.env.local`, su proyecto Supabase debe coincidir con `E2E_SUPABASE_URL`. Los secretos no deben compartirse ni versionarse.
 
-```env
-PLAYWRIGHT_BASE_URL=https://tu-entorno-testing.example
-E2E_START_LOCAL_SERVER=false
-```
-
-Comandos:
+## 3. Verificar y ejecutar
 
 ```powershell
+# Enumerar sin ejecutar
 npm run test:e2e:list
+
+# Suite funcional completa
 npm run test:e2e
+
+# Navegador visible o interfaz de depuración
 npm run test:e2e:headed
 npm run test:e2e:ui
+
+# Abrir el último reporte
 npm run test:e2e:report
 ```
 
-## 4. Evidencias generadas
+La suite usa Chromium, un trabajador y ejecución secuencial. `globalSetup` valida el ambiente y prepara datos aislados.
+
+El smoke de disponibilidad, protección y login de administrador se ejecuta por separado:
+
+```powershell
+npm run test:demo
+```
+
+`DEMO-SMOKE-001` no pertenece al catálogo funcional `PF-*` ni al PDF de las 47 pruebas.
+
+### Ejecuciones selectivas
+
+```powershell
+npx playwright test e2e/auth-access.spec.ts --project=chromium
+npx playwright test e2e/authorized-retriever-pickup.spec.ts --project=chromium
+npx playwright test e2e/traceability-visibility.spec.ts --project=chromium
+npx playwright test --project=chromium --grep 'PF-APO-SEC-003'
+npx playwright test --max-failures=1
+```
+
+## 4. Organización de los archivos E2E
+
+| Archivo | Cobertura |
+| --- | --- |
+| `auth-access.spec.ts` | Login, restricciones y administración de vínculos. |
+| `links-visibility.spec.ts` | Consulta de vínculos como Apoderado Primario y estudiante. |
+| `guardian-relationships.spec.ts` | Vista consolidada y administración individual de vínculos. |
+| `access-events.spec.ts` | Ingresos, salidas, contingencias y solicitudes. |
+| `guardian-pickup.spec.ts` | Retiro del Apoderado Primario con PIN dual. |
+| `authorized-retriever-pickup.spec.ts` | Apoderado Secundario, vigencia, revocación y PIN dual. |
+| `traceability-visibility.spec.ts` | Aislamiento de eventos por familia, institución, autorización y docente. |
+
+## 5. Evidencias generadas
 
 ```text
 reports/
-└── YYYYMMDD-HHMM/                    # Una carpeta independiente por ejecución
-    ├── playwright-html/              # Reporte interactivo
-    ├── playwright-results.json       # Resultado estructurado
-    ├── playwright-results.xml        # Formato JUnit
-    ├── VALIDGATE_resultados_e2e.html  # Resumen ejecutivo
-    ├── VALIDGATE_resultados_e2e.pdf   # Anexo para la tesis
-    └── test-results/                 # Capturas, videos y trazas
+└── YYYYMMDD-HHMM/
+    ├── playwright-html/
+    ├── playwright-results.json
+    ├── playwright-results.xml
+    ├── VALIDGATE_resultados_e2e.html
+    ├── VALIDGATE_resultados_e2e.pdf
+    └── test-results/
 ```
 
-La marca temporal usa la hora local del equipo al iniciar Playwright. Por ejemplo, una ejecución iniciada el 11 de agosto de 2026 a las 20:31 se conserva en `reports/20260811-2031/`.
+La carpeta usa la hora local del inicio de la corrida. No mezcles resultados de ejecuciones diferentes.
 
-El PDF incluye fecha, ambiente, build, navegador, totales, una matriz ID–RF–OE–rol–resultado y un anexo con evidencias rotuladas de las etapas relevantes de cada caso. Los flujos de varios actores pueden incluir múltiples capturas —estado inicial, acción, recepción, validación y estado final— dentro de una misma prueba. Los campos de entrada aparecen enmascarados para no divulgar passwords, códigos, PIN ni payloads QR.
+Al revisar el PDF comprueba que:
 
-El HTML de Playwright conserva las mismas capturas como adjuntos de cada caso. Cuando una prueba falla, además conserva la captura nativa del fallo, el video y la traza interactiva.
+1. cada prueba tenga un ID único y un resultado;
+2. los códigos de vinculación requeridos por el caso sean visibles;
+3. los flujos con PIN muestren ambos PIN, ambas aprobaciones en verde y el avance posterior;
+4. cada ingreso, salida, rechazo, contingencia o retiro incluya la trazabilidad generada;
+5. se capture completo el componente **Trazabilidad reciente**, incluidos encabezado, descripción y tarjetas;
+6. las tarjetas muestren los datos disponibles del evento y no expongan registros fuera del alcance del rol;
+7. contraseñas y payloads QR permanezcan protegidos.
 
-## 5. Cobertura vigente
+## 6. Diagnosticar un fallo
 
-- Autenticación y acceso: PF-AUTH-002/003 y PF-ACC-002/003.
-- Vínculos: PF-VIN-001/002 y PF-VIN-ADM-001 a 004.
-- Acceso y salida: PF-ING-001/003, PF-SAL-003/004, PF-SAU-001 y PF-SOL-002.
-- Retiro de apoderado: PF-RET-001/003/004/005/006.
-- Retirador temporal: PF-RET-AUT-001 a PF-RET-AUT-007.
+1. Ubica el primer error en `playwright-results.xml` o `playwright-results.json`.
+2. Confirma la última URL y acción completada en `test-results/<caso>/error-context.md`.
+3. Revisa la captura, el video y la traza antes de clasificarlo como defecto funcional.
+4. Repite solamente el ID afectado con un `E2E_REPORT_RUN_ID` diferente.
+5. Conserva tanto la corrida original como la de diagnóstico.
 
-Para ejecutar exclusivamente el flujo de retirador autorizado:
+Ejemplo:
 
 ```powershell
-npx playwright test e2e/authorized-retriever-pickup.spec.ts --project=chromium
+$env:E2E_REPORT_RUN_ID='diagnostico-pf-vin-001c'
+npx playwright test e2e/links-visibility.spec.ts --project=chromium --grep 'PF-VIN-001C'
 ```
 
-Cada PF-RET-AUT adjunta varias evidencias ordenadas —estado inicial, acción, mensajes, validación y estado final—. Los PIN se enmascaran tanto cuando aparecen en campos como cuando la aplicación los renderiza como texto.
+Si una prueba queda en el login con **Ingresando…** y vence esperando `/dashboard`, todavía no alcanzó las aserciones del escenario. Deben revisarse sesión, respuesta del servidor y traza; no debe clasificarse automáticamente como fallo de vínculos o privacidad. Si la repetición aislada pasa, documéntala como posible intermitencia sin alterar el reporte original.
 
-Los `Scenario Outline` producen más de un caso ejecutado cuando contienen varios roles o condiciones, pero conservan el mismo ID funcional.
+## 7. Errores frecuentes
+
+- Variables incompletas: revisa `.env.e2e.local`.
+- Mutaciones deshabilitadas: activa `E2E_ALLOW_REMOTE_MUTATIONS=true` solo tras confirmar el proyecto de testing.
+- Clave incorrecta: no utilices la clave pública como `service_role`.
+- Correo sin marcador: usa cuentas ficticias que contengan `E2E_EMAIL_MARKER`.
+- Aplicación y preparador en proyectos distintos: alinea `.env.local` y `.env.e2e.local`.
+- Aplicación inaccesible: revisa `PLAYWRIGHT_BASE_URL`, puerto y `E2E_START_LOCAL_SERVER`.
+- Migraciones incompletas: aplica hasta `027_fix_confirm_guardian_pickup_request_id.sql`.
+- Visor en una corrida incorrecta: abre directamente `reports/<run-id>/playwright-html`.

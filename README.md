@@ -13,8 +13,8 @@ El sistema busca reducir procesos manuales como el reconocimiento visual, las co
 - administración institucional;
 - personal de portería;
 - docentes;
-- apoderados;
-- retiradores autorizados;
+- Apoderados Primarios;
+- Apoderados Secundarios;
 - estudiantes.
 
 ## Flujo funcional general
@@ -38,8 +38,8 @@ flowchart LR
 En términos operativos:
 
 1. El usuario inicia sesión y accede a un dashboard adaptado a su rol.
-2. Los apoderados, estudiantes y retiradores consultan únicamente los estudiantes y vínculos que les corresponden.
-3. El estudiante o su apoderado puede generar una credencial QR temporal.
+2. Los Apoderados Primarios, Apoderados Secundarios y estudiantes consultan únicamente los estudiantes y vínculos que les corresponden.
+3. El estudiante o su Apoderado Primario puede generar una credencial QR temporal.
 4. Portería identifica al estudiante, selecciona el evento y aplica el método de validación permitido.
 5. El sistema comprueba el estado actual del estudiante, sus permisos y la política de la institución.
 6. Una operación aprobada actualiza el estado del estudiante; una rechazada conserva la evidencia sin cambiarlo.
@@ -52,8 +52,8 @@ En términos operativos:
 | **Administrador** | Supervisa la institución, opera el módulo de portería, administra vínculos apoderado-estudiante y configura políticas de acceso y retiro. |
 | **Portería** | Busca estudiantes, valida credenciales y registra ingresos, salidas y retiros. También procesa la cola de retiros con validación dual. |
 | **Docente** | Consulta estudiantes, cursos, asistencia y eventos visibles de su institución. |
-| **Apoderado** | Vincula estudiantes mediante código, consulta su información, genera QR, responde solicitudes de salida y administra retiradores temporales. |
-| **Retirador autorizado** | Ve solamente estudiantes con una autorización vigente e inicia solicitudes de retiro durante ese período. |
+| **Apoderado Primario** | Vincula estudiantes mediante código, consulta su información, genera QR, responde solicitudes de salida y administra Apoderados Secundarios temporales. |
+| **Apoderado Secundario** | Ve solamente estudiantes con una autorización temporal vigente e inicia solicitudes de retiro durante ese período. |
 | **Estudiante** | Consulta su estado, responsables, horario y asistencia; genera su QR, responde solicitudes de retiro y solicita salida autónoma cuando está habilitado. |
 
 Los permisos se validan tanto en la interfaz como en el servidor y en las políticas de acceso a datos de Supabase.
@@ -69,33 +69,33 @@ Los permisos se validan tanto en la interfaz como en el servidor y en las polít
 - Navegación y acciones adaptadas al rol.
 - Edición de nombre, RUT y teléfono.
 - Cambio de contraseña validando primero la contraseña actual.
-- Las cuentas creadas desde el registro público reciben el rol base de apoderado.
+- Las cuentas creadas desde el registro público reciben el rol técnico `APODERADO`, presentado como Apoderado Primario.
 
 ### 2. Vinculación entre apoderados y estudiantes
 
 Existen dos mecanismos:
 
-- **Vinculación por código:** el apoderado ingresa el código entregado por la institución. El sistema valida el código, evita duplicados y crea una relación permanente.
-- **Vinculación administrativa:** un administrador relaciona una cuenta de apoderado existente con un estudiante de su institución y puede retirar esa relación.
+- **Vinculación por código:** el Apoderado Primario ingresa el código entregado por la institución. El sistema valida el código, evita duplicados y crea una relación permanente.
+- **Vinculación administrativa:** un administrador relaciona una cuenta de Apoderado Primario existente con un estudiante de su institución y puede retirar esa relación.
 
-Una vez creado el vínculo, el apoderado puede consultar el estado, detalle, eventos, credenciales y solicitudes disponibles para ese estudiante. También puede desvincularse cuando las reglas lo permiten.
+Una vez creado el vínculo, el Apoderado Primario puede consultar el estado, detalle, eventos, credenciales y solicitudes disponibles para ese estudiante. También puede desvincularse cuando las reglas lo permiten.
 
-### 3. Retiradores autorizados temporales
+### 3. Apoderados Secundarios autorizados temporalmente
 
-Un administrador o apoderado puede autorizar a una tercera persona para retirar a un estudiante:
+Un administrador o Apoderado Primario puede autorizar a un Apoderado Secundario para retirar a un estudiante:
 
 1. Selecciona al estudiante.
 2. Registra nombre, correo y período de vigencia.
 3. Si la cuenta ya existe, VALIDGATE reutiliza su identidad; de lo contrario, envía una invitación por correo.
 4. La relación queda activa solamente entre las fechas indicadas.
-5. El retirador ve al estudiante únicamente mientras la autorización está vigente.
-6. El administrador o el apoderado que creó la autorización puede revocarla anticipadamente.
+5. El Apoderado Secundario ve al estudiante únicamente mientras la autorización está vigente.
+6. El administrador o el Apoderado Primario que creó la autorización puede revocarla anticipadamente.
 
 Las relaciones vencidas o revocadas permanecen como historial, pero no permiten iniciar nuevos retiros.
 
 ### 4. Credencial QR temporal
 
-El estudiante o su apoderado puede generar un QR opaco para presentarlo en portería. La credencial:
+El estudiante o su Apoderado Primario puede generar un QR opaco para presentarlo en portería. La credencial:
 
 - no contiene datos personales legibles;
 - vence después de dos minutos;
@@ -141,24 +141,24 @@ El estudiante puede solicitar permiso para salir por sus propios medios:
 1. Debe estar vinculado a un perfil estudiantil y encontrarse dentro de la institución.
 2. Envía una solicitud con un motivo opcional.
 3. La solicitud permanece disponible durante 15 minutos.
-4. El apoderado la aprueba o rechaza desde su dashboard.
-5. Una aprobación genera un retiro pendiente y dos PIN independientes para el apoderado y el estudiante.
-6. Portería valida presencialmente ambos PIN y confirma el retiro efectivo.
-7. Solo entonces el sistema registra la salida y cambia al estudiante al estado fuera de la institución.
+4. El Apoderado Primario la aprueba o rechaza desde su dashboard.
+5. Una aprobación genera un retiro pendiente y dos PIN independientes para el Apoderado Primario y el estudiante.
+6. Portería valida presencialmente ambos PIN; la segunda validación completa el retiro sin una aprobación adicional.
+7. El sistema muestra una instrucción nominal, registra la salida y cambia al estudiante al estado fuera de la institución.
 
-El estudiante inicia la solicitud, el apoderado la aprueba y portería confirma la salida después de validar ambas identidades.
+El estudiante inicia la solicitud, el Apoderado Primario la aprueba y portería valida ambas identidades; no existe un segundo clic de aprobación.
 
 ### 8. Retiro con validación dual
 
-El retiro por apoderado o retirador autorizado requiere validar por separado a la persona que retira y al estudiante:
+El retiro por Apoderado Primario o Apoderado Secundario requiere validar por separado al apoderado responsable y al estudiante:
 
-1. El apoderado o retirador inicia la solicitud desde el dashboard.
+1. El Apoderado Primario o Secundario inicia la solicitud desde el dashboard.
 2. El estudiante recibe la solicitud y puede aceptarla o rechazarla.
 3. Solo después de la aceptación se generan dos PIN independientes: uno para el responsable y otro para el estudiante.
 4. Cada persona presenta su PIN exclusivamente en portería.
 5. Portería valida ambos PIN o utiliza una validación manual controlada con motivo y observación.
-6. Con ambas identidades validadas, portería confirma la salida efectiva.
-7. La confirmación registra el retiro y cambia al estudiante a estado fuera de la institución.
+6. La segunda validación completa automáticamente la salida efectiva y muestra a portería los nombres que debe comprobar.
+7. El sistema registra el retiro y cambia al estudiante a estado fuera de la institución.
 
 El proceso contempla:
 
@@ -217,7 +217,7 @@ Estas reglas se vuelven a validar en el servidor y la base de datos; no dependen
 - Las rutas privadas requieren una sesión válida.
 - El rol y la institución de una cuenta no pueden ser modificados por el propio usuario.
 - Row Level Security limita los datos por institución, rol y relación vigente.
-- Los retiradores solo acceden a estudiantes autorizados durante el período configurado.
+- Los Apoderados Secundarios solo acceden a estudiantes autorizados durante el período configurado.
 - Las operaciones críticas de autorización, QR y retiro se ejecutan mediante funciones transaccionales en PostgreSQL.
 - La `SUPABASE_SERVICE_ROLE_KEY` se utiliza únicamente en el servidor para enviar invitaciones; nunca debe exponerse como variable pública.
 - Las claves, PIN, payloads QR y credenciales E2E locales no deben versionarse.
@@ -265,7 +265,7 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 SUPABASE_SERVICE_ROLE_KEY=tu-clave-de-servicio
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` solo es necesaria para invitar retiradores autorizados y debe permanecer exclusivamente en el servidor.
+`SUPABASE_SERVICE_ROLE_KEY` solo es necesaria para invitar Apoderados Secundarios y debe permanecer exclusivamente en el servidor.
 
 ### Instalación y ejecución
 
@@ -305,7 +305,7 @@ Consulta [la guía de demo local](docs/DEMO_LOCAL.md) para opciones y contingenc
 
 ## Pruebas E2E
 
-La suite Playwright cubre flujos críticos de autenticación, permisos, vinculación, ingreso, salida regular, salida autónoma y retiro con PIN dual.
+La suite Playwright cubre 47 casos funcionales con IDs únicos: autenticación, restricciones, vinculación, ingreso, salida regular, contingencia, retiro con PIN dual y aislamiento de trazabilidad por familia, institución, vigencia y rol docente.
 
 Configura `.env.e2e.local` a partir de `.env.e2e.example` y utiliza exclusivamente un proyecto Supabase de testing.
 
@@ -329,7 +329,7 @@ Actualmente están implementados:
 - acceso diferenciado para seis roles;
 - aislamiento de datos por institución y relación;
 - vinculación de apoderados por código y por administración;
-- autorizaciones temporales para retiradores;
+- autorizaciones temporales para Apoderados Secundarios;
 - QR temporal de uso único;
 - registro manual, por QR y por PIN;
 - reglas configurables de ingreso y salida;
@@ -345,8 +345,11 @@ Quedan fuera del alcance actual las integraciones con dispositivos físicos, not
 ## Documentación relacionada
 
 - [Preparación de la demo local](docs/DEMO_LOCAL.md)
+- [Configuración local](docs/CONFIGURACION_LOCAL.md)
+- [Descripción del sistema actual](docs/validgate_sistema_actual.md)
 - [Pruebas end-to-end](reports/README.md)
-- [Flujo de retiradores autorizados](docs/AUTHORIZED_RETRIEVER_FLOW.md)
+- [Plan de pruebas funcionales](reports/plan_pruebas_funcionales_validgate.md)
+- [Flujo de Apoderados Secundarios](docs/AUTHORIZED_RETRIEVER_FLOW.md)
 
 ## Autor
 

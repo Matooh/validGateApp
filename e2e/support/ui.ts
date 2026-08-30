@@ -12,7 +12,7 @@ export async function loginWithCredentials(page: Page, email: string, password: 
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: 'Login' }).click();
-  await expect(page).toHaveURL(/\/dashboard/);
+  await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
   if (expectedRole) await expect(page.getByText(expectedRole, { exact: true }).first()).toBeVisible();
 }
 

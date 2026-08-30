@@ -26,7 +26,6 @@ docs/user-credentials.txt
 docs/**/~$*
 docs/**/~WRL*.tmp
 docs/prompts
-docs/CONFIGURACION_LOCAL.md
 
 # Herramientas locales para elaboración de la tesis. Los dos scripts operativos
 # de demo sí forman parte del MVP y se versionan explícitamente.

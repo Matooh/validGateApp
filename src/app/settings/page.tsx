@@ -95,7 +95,7 @@ export default async function SettingsPage({
           >
             <div>
               <h2 className="text-xl font-semibold text-slate-900">Retiro con PIN dual</h2>
-              <p className="mt-1 text-sm text-slate-500">Configuración institucional aplicada a los PIN del apoderado y del estudiante.</p>
+              <p className="mt-1 text-sm text-slate-500">Configuración institucional aplicada a los PIN del apoderado responsable y del estudiante.</p>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
@@ -110,7 +110,7 @@ export default async function SettingsPage({
             <div>
               <label htmlFor="student_notification_message" className="mb-2 block text-sm font-medium text-slate-700">Mensaje para el estudiante</label>
               <textarea id="student_notification_message" name="student_notification_message" rows={3} required defaultValue={pickupSettings?.student_notification_message ?? '{guardian_name} está esperando por ti'} className="w-full rounded-xl border border-slate-300 px-4 py-3" />
-              <p className="mt-1 text-xs text-slate-500">Usa {'{guardian_name}'} para insertar el nombre del apoderado.</p>
+              <p className="mt-1 text-xs text-slate-500">Usa {'{guardian_name}'} para insertar el nombre del Apoderado Primario o Secundario.</p>
             </div>
             <PendingSubmitButton pendingLabel="Guardando..." className="rounded-xl bg-sky-700 px-4 py-3 font-semibold text-white hover:bg-sky-800">
               Guardar configuración de retiro

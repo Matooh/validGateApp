@@ -15,9 +15,9 @@ export const QR_MESSAGE_TEXT = {
   QR_ENTRY_ALREADY_ACTIVE: 'El estudiante ya registra un ingreso activo.',
   QR_STUDENT_NOT_INSIDE: 'El estudiante ya se encuentra fuera del recinto.',
   QR_EXIT_NOT_ALLOWED_ALONE:
-    'El estudiante no está autorizado para salir solo. Solicita autorización de apoderado o responsable.',
-  EXIT_AUTHORIZATION_REQUIRED: 'Se requiere autorización vigente del apoderado para confirmar la salida.',
-  EXIT_AUTHORIZATION_VALID: 'Existe una autorización vigente de apoderado.',
+    'El estudiante no está autorizado para salir solo. Solicita autorización del Apoderado Primario.',
+  EXIT_AUTHORIZATION_REQUIRED: 'Se requiere autorización vigente del Apoderado Primario para confirmar la salida.',
+  EXIT_AUTHORIZATION_VALID: 'Existe una autorización vigente del Apoderado Primario.',
   EXIT_AUTHORIZATION_NOT_FOUND: 'No encontramos una autorización vigente para salida.',
   QR_EVENT_REGISTERED: 'Evento registrado correctamente mediante QR.',
   ACCESS_EXIT_REGISTERED: 'Salida registrada correctamente.',

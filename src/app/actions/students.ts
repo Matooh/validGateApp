@@ -17,7 +17,7 @@ export async function linkStudentByCodeAction(formData: FormData) {
 
   const { profile } = await requireUser();
   if (profile?.role !== 'APODERADO') {
-    redirect('/dashboard?kind=error&message=Solo+los+apoderados+pueden+vincularse+mediante+c%C3%B3digo');
+    redirect('/dashboard?kind=error&message=Solo+los+Apoderados+Primarios+pueden+vincularse+mediante+c%C3%B3digo');
   }
   const supabase = await createClient();
 
@@ -46,7 +46,7 @@ export async function linkStudentByCodeAction(formData: FormData) {
 
   if (status === 'linked') {
     revalidatePath('/dashboard');
-    redirect('/dashboard?message=Vinculación+éxitosa');
+    redirect('/dashboard?message=Vinculación+exitosa');
   }
 
   redirect('/students/link?kind=error&message=Respuesta+inesperada+del+servidor');

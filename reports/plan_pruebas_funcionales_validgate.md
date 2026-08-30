@@ -17,15 +17,15 @@ Cuando un comportamiento está documentado pero no cuenta con interfaz completa,
 | Administrador | Configuración institucional, estudiantes, políticas y operaciones de portería. |
 | Portería | Validación de identidad, ingresos, salidas, retiros y eventos recientes. |
 | Docente | Dashboard, cursos, asistencia y detalle autorizado; sin operaciones de portería. |
-| Apoderado | Estudiantes vinculados, solicitudes, retiros, credenciales y trazabilidad relacionada. |
+| Apoderado Primario | Estudiantes vinculados, solicitudes, retiros, credenciales y trazabilidad relacionada. |
 | Estudiante | Estado personal, QR, salida autónoma, solicitudes y respuesta a retiros. |
-| Retirador autorizado | Estudiantes asignados temporalmente, solicitud de retiro y presentación de PIN; sin acceso a estudiantes no autorizados. |
+| Apoderado Secundario | Estudiantes asignados temporalmente, solicitud de retiro y presentación de PIN; sin acceso a estudiantes no autorizados. |
 
 ## 4. Criterios de entrada
 
 - Entorno controlado disponible y compilación de la aplicación satisfactoria.
 - Migraciones aplicadas en el orden previsto y datos de prueba aislados por institución.
-- Cuentas activas para los seis roles y relaciones estudiante-apoderado-retirador preparadas.
+- Cuentas activas para los seis roles visibles y relaciones estudiante-Apoderado Primario/Secundario preparadas.
 - Migraciones `001` a `027` aplicadas; la `027` corrige la confirmación final del retiro con PIN dual.
 - Estudiantes de prueba con estados dentro/fuera, cursos, permisos y credenciales conocidos.
 - Políticas institucionales y configuraciones de retiro definidas para cada conjunto de pruebas.
@@ -42,6 +42,8 @@ Cuando un comportamiento está documentado pero no cuenta con interfaz completa,
 ## 6. Escenarios funcionales en Gherkin
 
 Condición común para la futura automatización: VALIDGATE se encuentra disponible en un entorno controlado, con datos de prueba y usuarios que poseen el rol y las vinculaciones indicadas en cada escenario.
+
+Regla común de evidencia: todo caso que genere un ingreso, salida, rechazo, contingencia o retiro debe mostrar el componente completo **Trazabilidad reciente** con sus tarjetas y datos visibles. Los casos con PIN deben mostrar ambos valores, las dos aprobaciones en verde y la continuación del flujo. Los códigos de vinculación válidos o erróneos deben quedar visibles cuando sean parte de la validación.
 
 ### 6.1 Autenticación y control de acceso
 
@@ -64,7 +66,7 @@ Scenario: PF-AUTH-001 Registrar una cuenta con datos válidos
 
 ```
 
-#### PF-AUTH-002 — Iniciar sesión y acceder al panel correspondiente al rol
+#### PF-AUTH-002A–002E — Iniciar sesión y acceder al panel correspondiente al rol
 
 - Requerimiento relacionado: RF01
 - Objetivo específico relacionado: OE2, OE4
@@ -74,19 +76,19 @@ Scenario: PF-AUTH-001 Registrar una cuenta con datos válidos
 - Estado de implementación observado: Implementado
 
 ```gherkin
-Scenario Outline: PF-AUTH-002 Iniciar sesión y acceder al panel correspondiente al rol
+Scenario Outline: <id> Iniciar sesión y acceder al panel correspondiente al rol
     Given tengo una cuenta activa con rol "<rol>"
     When ingreso mi email y password correctos en el login
     Then el sistema muestra una confirmación de inicio de sesión
     And accedo al dashboard correspondiente al rol "<rol>"
 
     Examples:
-      | rol         |
-      | ADMIN       |
-      | PORTERIA    |
-      | DOCENTE     |
-      | APODERADO   |
-      | ESTUDIANTE  |
+      | id           | rol                 |
+      | PF-AUTH-002A | ADMIN               |
+      | PF-AUTH-002B | PORTERIA            |
+      | PF-AUTH-002C | DOCENTE             |
+      | PF-AUTH-002D | Apoderado Primario  |
+      | PF-AUTH-002E | ESTUDIANTE          |
 
 ```
 
@@ -177,7 +179,7 @@ Scenario Outline: PF-ACC-001 Mostrar navegación y dashboard según el rol
 
 ```
 
-#### PF-ACC-002 — Restringir una pantalla no autorizada
+#### PF-ACC-002A–002C — Restringir una pantalla no autorizada
 
 - Requerimiento relacionado: RF05
 - Objetivo específico relacionado: OE2, OE4
@@ -187,17 +189,17 @@ Scenario Outline: PF-ACC-001 Mostrar navegación y dashboard según el rol
 - Estado de implementación observado: Implementado
 
 ```gherkin
-Scenario Outline: PF-ACC-002 Restringir una pantalla no autorizada
+Scenario Outline: <id> Restringir una pantalla no autorizada
     Given estoy autenticado con rol "<rol>"
     When intento acceder directamente a "<pantalla>"
     Then el sistema me dirige a una pantalla permitida
     And no muestra las operaciones restringidas
 
     Examples:
-      | rol        | pantalla  |
-      | APODERADO  | Portería  |
-      | ESTUDIANTE | Portería  |
-      | DOCENTE    | Autenticaciones |
+      | id          | rol                 | pantalla  |
+      | PF-ACC-002A | Apoderado Primario  | Portería  |
+      | PF-ACC-002B | ESTUDIANTE          | Portería  |
+      | PF-ACC-002C | DOCENTE             | Portería  |
 
 ```
 
@@ -222,7 +224,7 @@ Scenario: PF-ACC-003 Impedir la consulta de un estudiante ajeno
 
 ### 6.2 Gestión de estudiantes y apoderados
 
-#### PF-VIN-001 — Vincular un estudiante mediante un código válido
+#### PF-VIN-001A–001C — Vincular un estudiante y consultar sus vínculos
 
 - Requerimiento relacionado: RF03
 - Objetivo específico relacionado: OE2, OE4
@@ -232,16 +234,29 @@ Scenario: PF-ACC-003 Impedir la consulta de un estudiante ajeno
 - Estado de implementación observado: Implementado
 
 ```gherkin
-Scenario: PF-VIN-001 Vincular un estudiante mediante un código válido
-    Given soy un apoderado autenticado y accedo a "Vincular estudiante"
-    When ingreso un código de vinculación válido
+Scenario: PF-VIN-001A Vincular un estudiante mediante un código válido
+    Given soy un apoderado autenticado en su dashboard
+    And visualizo los estudiantes actualmente vinculados
+    When accedo al panel "Vincular estudiante"
+    And ingreso un código de vinculación válido
+    And el código ingresado queda visible en la evidencia
     And selecciono "Vincular estudiante"
     Then el sistema muestra "Vinculación exitosa"
     And el estudiante aparece en "Estudiantes vinculados"
 
+Scenario: PF-VIN-001B Consultar vínculos como Apoderado Primario
+    Given soy un Apoderado Primario autenticado
+    When accedo a "Vínculos"
+    Then visualizo únicamente mis estudiantes vinculados
+
+Scenario: PF-VIN-001C Consultar vínculos como estudiante
+    Given soy un estudiante autenticado
+    When accedo a "Vínculos"
+    Then visualizo únicamente mis apoderados vinculados
+
 ```
 
-#### PF-VIN-002 — Informar códigos inválidos o vínculos duplicados
+#### PF-VIN-002A–002B — Informar códigos inválidos o vínculos duplicados
 
 - Requerimiento relacionado: RF03
 - Objetivo específico relacionado: OE2, OE4
@@ -251,17 +266,18 @@ Scenario: PF-VIN-001 Vincular un estudiante mediante un código válido
 - Estado de implementación observado: Implementado
 
 ```gherkin
-Scenario Outline: PF-VIN-002 Informar códigos inválidos o vínculos duplicados
+Scenario Outline: <id> Informar códigos inválidos o vínculos duplicados
     Given soy un apoderado autenticado en "Vincular estudiante"
     When ingreso "<condicion>"
+    And el código ingresado queda visible en la evidencia
     And selecciono "Vincular estudiante"
     Then el sistema muestra "<mensaje>"
     And no crea un nuevo vínculo
 
     Examples:
-      | condicion                         | mensaje                                               |
-      | un código inexistente             | Código de vinculación no válido                       |
-      | el código de un estudiante vinculado| Este estudiante ya está vinculado a tu cuenta       |
+      | id          | condicion                              | mensaje                                         |
+      | PF-VIN-002A | un código inexistente                  | Código de vinculación no válido                 |
+      | PF-VIN-002B | el código de un estudiante vinculado   | Este estudiante ya está vinculado a tu cuenta  |
 
 ```
 
@@ -284,9 +300,77 @@ Scenario: PF-VIN-003 Desvincular un estudiante
 
 ```
 
+#### PF-VIN-ADM-001 — Permitir al administrador gestionar vínculos
+
+- Requerimiento relacionado: RF03
+- Objetivo específico relacionado: OE1, OE2, OE4
+- Rol principal: Administrador
+- Tipo de prueba: Flujo exitoso
+- Prioridad: Alta
+- Estado de implementación observado: Implementado
+
+```gherkin
+Scenario: PF-VIN-ADM-001 Permitir al administrador gestionar vínculos
+    Given soy un administrador autenticado y visualizo mi dashboard
+    When abro la gestión de vínculos de un estudiante que ya tiene relaciones
+    Then visualizo primero todos sus vínculos existentes
+    When agrego otro Apoderado Primario
+    Then visualizo el conjunto actualizado
+    When abro un segundo estudiante sin relaciones
+    Then visualizo explícitamente que no tiene vínculos
+    When agrego su primer Apoderado Primario
+    Then visualizo el nuevo vínculo en el mismo estudiante
+```
+
+#### PF-VIN-ADM-002A–002D — Restringir la gestión administrativa
+
+- Requerimiento relacionado: RF05
+- Objetivo específico relacionado: OE2, OE4
+- Rol principal: Portería, Docente, Apoderado Primario y Estudiante
+- Tipo de prueba: Restricción de permisos
+- Prioridad: Alta
+- Estado de implementación observado: Implementado
+
+```gherkin
+Scenario Outline: <id> Restringir la gestión administrativa para un rol no autorizado
+    Given estoy autenticado con rol "<rol>"
+    When intento acceder directamente a la administración de vínculos
+    Then el sistema me dirige a una pantalla permitida
+    And no muestra datos ni acciones administrativas
+
+    Examples:
+      | id                 | rol                 |
+      | PF-VIN-ADM-002A    | PORTERIA            |
+      | PF-VIN-ADM-002B    | DOCENTE             |
+      | PF-VIN-ADM-002C    | Apoderado Primario  |
+      | PF-VIN-ADM-002D    | ESTUDIANTE          |
+```
+
+#### PF-VIN-ADM-003–004 — Proteger y consolidar la administración de vínculos
+
+- Requerimiento relacionado: RF03, RF05
+- Objetivo específico relacionado: OE1, OE2, OE4
+- Rol principal: Administrador
+- Tipo de prueba: Restricción y flujo exitoso
+- Prioridad: Alta
+- Estado de implementación observado: Implementado
+
+```gherkin
+Scenario: PF-VIN-ADM-003 Impedir que el administrador se vincule mediante código
+    Given soy un administrador autenticado
+    When intento abrir la vinculación personal mediante código
+    Then el sistema restringe el acceso
+
+Scenario: PF-VIN-ADM-004 Consolidar, buscar y administrar vínculos individuales
+    Given soy un administrador autenticado en mi dashboard
+    When accedo a la administración consolidada y busco un estudiante
+    Then visualizo el estudiante y todas sus personas vinculadas
+    And cada vínculo presenta sus datos y acciones individuales
+```
+
 ### 6.3 Ingreso y salida
 
-#### PF-ING-001 — Registrar manualmente el ingreso de un estudiante
+#### PF-ING-001A–001B — Registrar y validar el formulario de ingreso manual
 
 - Requerimiento relacionado: RF07
 - Objetivo específico relacionado: OE3, OE4
@@ -296,13 +380,20 @@ Scenario: PF-VIN-003 Desvincular un estudiante
 - Estado de implementación observado: Implementado
 
 ```gherkin
-Scenario: PF-ING-001 Registrar manualmente el ingreso de un estudiante
+Scenario: PF-ING-001A Registrar manualmente el ingreso de un estudiante
     Given soy personal de portería autenticado
     And el estudiante figura "Fuera de la institución"
     When lo selecciono para un evento de "Ingreso"
     And confirmo el registro con el método permitido
     Then el sistema informa que el ingreso fue aprobado
     And el estudiante queda "Dentro de la institución"
+
+Scenario: PF-ING-001B Explicar la política y validar la observación obligatoria
+    Given soy personal de portería y preparo un ingreso manual por contingencia
+    When completo la contingencia, el motivo y el resultado
+    Then el resumen y la política aplicada se muestran en viñetas
+    When intento continuar sin la observación obligatoria
+    Then el campo se destaca y el sistema explica qué información falta
 
 ```
 
@@ -405,7 +496,7 @@ Scenario: PF-SAL-002 Rechazar una salida sin ingreso activo
 
 ```
 
-#### PF-SAL-003 — Exigir autenticador según la política de salida
+#### PF-SAL-003A–003C — Aplicar la política y contingencias de salida
 
 - Requerimiento relacionado: RF08
 - Objetivo específico relacionado: OE3, OE4
@@ -415,12 +506,31 @@ Scenario: PF-SAL-002 Rechazar una salida sin ingreso activo
 - Estado de implementación observado: Implementado
 
 ```gherkin
-Scenario: PF-SAL-003 Exigir autenticador según la política de salida
+Scenario: PF-SAL-003A Exigir autenticador según la política de salida
     Given soy personal de portería autenticado
     And la política institucional exige QR o PIN de forma excluyente para la salida
-    When intento registrar una salida manual sin presentar el autenticador
-    Then el sistema rechaza la salida
-    And muestra que falta el autenticador requerido
+    And existe un estudiante que puede salir solo y otro que no puede salir solo
+    When selecciono al estudiante que puede salir solo
+    Then la política muestra que su salida autónoma normal exige QR
+    When selecciono al estudiante que no puede salir solo
+    Then la política muestra que su QR individual no autoriza la salida
+    And exige de forma excluyente el PIN dual del estudiante y su responsable
+    When intento registrar manualmente su salida
+    Then el sistema bloquea la operación y el estudiante permanece dentro
+
+Scenario: PF-SAL-003B Permitir una salida excepcional documentada
+    Given el estudiante está dentro y no tiene permiso para salir solo
+    And soy personal de portería autenticado
+    When selecciono la salida "Excepcional"
+    And registro la observación obligatoria
+    Then el sistema permite la salida sin QR ni PIN dual
+    And registra el resultado aprobado en la trazabilidad como "Excepcional"
+
+Scenario: PF-SAL-003C Solicitar aprobación del Apoderado Primario para salida por contingencia
+    Given el estudiante puede salir solo pero no dispone del autenticador exigido
+    When portería documenta la contingencia y solicita autorización
+    Then el Apoderado Primario puede aprobarla
+    And la salida aprobada queda visible en la trazabilidad reciente
 
 ```
 
@@ -522,7 +632,7 @@ Scenario Outline: PF-RET-003 Responder una solicitud de retiro como estudiante
 
 ```
 
-#### PF-RET-004 — Validar los PIN en cualquier orden
+#### PF-RET-004 — Completar un retiro como Apoderado Primario usando PIN dual
 
 - Requerimiento relacionado: RF09
 - Objetivo específico relacionado: OE3, OE4
@@ -532,20 +642,15 @@ Scenario Outline: PF-RET-003 Responder una solicitud de retiro como estudiante
 - Estado de implementación observado: Implementado
 
 ```gherkin
-Scenario Outline: PF-RET-004 Validar los PIN en cualquier orden
+Scenario: PF-RET-004 Completar un retiro como Apoderado Primario usando PIN dual
     Given soy personal de portería autenticado
-    And existe un retiro pendiente de validación con ambos PIN vigentes
-    When valido primero el PIN del "<primer_actor>"
-    Then el sistema marca a esa persona como validada
-    And mantiene a la otra persona pendiente
-    When valido el PIN de la otra persona
-    Then el sistema muestra "Ambos validados"
-    And habilita "Confirmar retiro"
-
-    Examples:
-      | primer_actor |
-      | Apoderado    |
-      | Estudiante   |
+    And existe un retiro iniciado por el Apoderado Primario con ambos PIN vigentes
+    And la evidencia muestra el PIN del apoderado y el PIN del estudiante
+    When valido el PIN del Apoderado Primario
+    And valido el PIN del estudiante
+    Then la segunda validación completa automáticamente el retiro
+    And ambas aprobaciones permanecen visibles en verde
+    And la salida generada aparece en la trazabilidad reciente
 
 ```
 
@@ -572,6 +677,13 @@ Scenario Outline: PF-RET-005 Rechazar PIN inválidos, vencidos o bloqueados
       | que agotó el máximo de intentos   | Solicitud bloqueada por alcanzar el máximo de intentos         |
       | vencido                           | Los PIN expiraron. Debe generarse una nueva solicitud          |
 
+Scenario: PF-RET-005 Consultar el PIN DUAL vigente y continuar el retiro
+    Given existe un retiro aceptado con ambos PIN vigentes
+    Then la evidencia muestra el PIN del apoderado y el PIN del estudiante
+    When portería valida ambos PIN
+    Then ambas aprobaciones permanecen visibles en verde
+    And la salida generada aparece en la trazabilidad reciente
+
 ```
 
 #### PF-RET-006 — Confirmar el retiro después de validar a ambas personas
@@ -586,12 +698,15 @@ Scenario Outline: PF-RET-005 Rechazar PIN inválidos, vencidos o bloqueados
 ```gherkin
 Scenario: PF-RET-006 Confirmar el retiro después de validar a ambas personas
     Given soy personal de portería autenticado
-    And la solicitud muestra "Ambos validados"
+    And la evidencia muestra el PIN del apoderado y el PIN del estudiante
     And el estudiante continúa dentro de la institución
-    When selecciono "Confirmar retiro"
-    Then el sistema muestra "Retiro confirmado y salida registrada"
+    When valido el PIN del estudiante
+    And valido el PIN del Apoderado Primario
+    Then la segunda validación completa automáticamente el retiro
+    And ambas aprobaciones permanecen visibles en verde
     And la solicitud aparece como "Completado"
     And el estudiante queda fuera de la institución
+    And la salida generada aparece en la trazabilidad reciente
 
 ```
 
@@ -635,77 +750,81 @@ Scenario: PF-RET-008 Rechazar excepcionalmente el retiro en portería
 
 ```
 
-#### PF-RET-AUT-001 — Registrar un retirador nuevo con correo y RUT
+#### PF-APO-SEC-001 — Registrar un Apoderado Secundario nuevo con correo y RUT
 
 - Requerimiento relacionado: RF04
 - Objetivo específico relacionado: OE2, OE3, OE4
-- Rol principal: Apoderado
+- Rol principal: Apoderado Primario
 - Tipo de prueba: Flujo exitoso
 - Prioridad: Alta
 - Estado de implementación observado: Implementado y automatizado
 
 ```gherkin
-Scenario: PF-RET-AUT-001 Registrar un retirador nuevo con correo y RUT
-    Given soy un apoderado autenticado y el retirador aún no está vinculado
+Scenario: PF-APO-SEC-001 Registrar un Apoderado Secundario nuevo con correo y RUT
+    Given soy un Apoderado Primario autenticado y el Apoderado Secundario aún no está vinculado
     When completo estudiante, nombre, correo, RUT y vigencia
     And selecciono "Invitar y autorizar"
     Then el sistema confirma el registro y la autorización
     And muestra el vínculo con estado "Vigente"
-    And la cuenta activada del retirador muestra solamente al estudiante asignado
+    And la cuenta activada del Apoderado Secundario muestra solamente al estudiante asignado
 ```
 
-#### PF-RET-AUT-002 — Autorizar un retirador registrado previamente
+#### PF-APO-SEC-002 — Autorizar un Apoderado Secundario registrado previamente
 
 - Requerimiento relacionado: RF04
 - Objetivo específico relacionado: OE2, OE3, OE4
-- Rol principal: Apoderado
+- Rol principal: Apoderado Primario
 - Tipo de prueba: Flujo alternativo
 - Prioridad: Alta
 - Estado de implementación observado: Implementado y automatizado
 
 ```gherkin
-Scenario: PF-RET-AUT-002 Autorizar un retirador registrado previamente
-    Given existe una cuenta de retirador sin estudiantes asignados
-    When el apoderado la identifica mediante correo y RUT
+Scenario: PF-APO-SEC-002 Autorizar un Apoderado Secundario registrado previamente
+    Given existe una cuenta de Apoderado Secundario sin estudiantes asignados
+    When el Apoderado Primario la identifica mediante correo y RUT
     And autoriza el retiro de un estudiante durante un período vigente
     Then el sistema reutiliza la cuenta existente
     And muestra el nuevo vínculo como "Vigente"
-    And el retirador puede ver al estudiante asignado
+    And el Apoderado Secundario puede ver al estudiante asignado
 ```
 
-#### PF-RET-AUT-003 — Completar un retiro autorizado con PIN dual
+#### PF-APO-SEC-003 — Completar un retiro como Apoderado Secundario usando PIN dual
 
 - Requerimiento relacionado: RF09
 - Objetivo específico relacionado: OE2, OE3, OE4
-- Roles participantes: Retirador autorizado, Estudiante y Portería
+- Roles participantes: Apoderado Secundario, Estudiante y Portería
 - Tipo de prueba: Flujo exitoso de extremo a extremo
 - Prioridad: Alta
 - Estado de implementación observado: Implementado y automatizado
 
 ```gherkin
-Scenario: PF-RET-AUT-003 Completar un retiro autorizado con PIN dual
-    Given el retirador posee una autorización vigente para el estudiante
+Scenario: PF-APO-SEC-003 Completar un retiro como Apoderado Secundario usando PIN dual
+    Given el Apoderado Secundario posee una autorización vigente para el estudiante
     When solicita el retiro
     Then el estudiante recibe el mensaje configurado
     When el estudiante acepta la solicitud
-    Then estudiante y retirador reciben PIN diferentes
-    When portería valida ambos PIN y confirma el retiro efectivo
-    Then el sistema registra una sola salida de tipo "RETIRO_AUTORIZADO"
+    Then estudiante y Apoderado Secundario reciben PIN diferentes
+    And la evidencia muestra ambos PIN
+    When portería valida ambos PIN
+    Then la segunda validación completa el retiro efectivo sin aprobación adicional
+    And ambas aprobaciones permanecen visibles en verde
+    And el sistema registra una sola salida de tipo "RETIRO_AUTORIZADO"
     And la solicitud queda "Completado"
+    And la salida generada aparece en la trazabilidad reciente
 ```
 
-#### PF-RET-AUT-004 — Rechazar una solicitud con autorización no vigente
+#### PF-APO-SEC-004 — Rechazar una solicitud con autorización secundaria no vigente
 
 - Requerimiento relacionado: RF09
 - Objetivo específico relacionado: OE2, OE3, OE4
-- Rol principal: Retirador autorizado
+- Rol principal: Apoderado Secundario
 - Tipo de prueba: Restricción de permisos
 - Prioridad: Alta
 - Estado de implementación observado: Implementado y automatizado
 
 ```gherkin
-Scenario: PF-RET-AUT-004 Rechazar una solicitud con autorización no vigente
-    Given el retirador mantiene abierta una vista que mostraba una autorización vigente
+Scenario: PF-APO-SEC-004 Rechazar una solicitud con autorización secundaria no vigente
+    Given el Apoderado Secundario mantiene abierta una vista que mostraba una autorización vigente
     And la autorización fue revocada antes de iniciar el retiro
     When selecciona "Notificar retiro"
     Then el sistema muestra un toast indicando que el vínculo no está autorizado
@@ -713,56 +832,36 @@ Scenario: PF-RET-AUT-004 Rechazar una solicitud con autorización no vigente
     And al actualizar la vista el estudiante deja de estar disponible
 ```
 
-#### PF-RET-AUT-005 — Revocar la autorización y cancelar el retiro inmediatamente
+#### PF-APO-SEC-005 — Revocar la autorización secundaria y cancelar el retiro inmediatamente
 
 - Requerimiento relacionado: RF04
 - Objetivo específico relacionado: OE2, OE3, OE4
-- Rol principal: Apoderado
+- Rol principal: Apoderado Primario
 - Tipo de prueba: Revocación
 - Prioridad: Alta
 - Estado de implementación observado: Implementado y automatizado
 
 ```gherkin
-Scenario: PF-RET-AUT-005 Revocar la autorización y cancelar el retiro inmediatamente
+Scenario: PF-APO-SEC-005 Revocar la autorización secundaria y cancelar el retiro inmediatamente
     Given existe un retiro activo aceptado por el estudiante y con PIN generados
-    When el apoderado revoca la autorización temporal
+    When el Apoderado Primario revoca la autorización temporal
     Then el vínculo aparece como "Revocado"
     And la solicitud cambia a "Cancelado por revocación de autorización"
     And los PIN dejan de ser utilizables inmediatamente
 ```
 
-#### PF-RET-AUT-006 — Impedir reutilizar un PIN consumido
+#### PF-APO-SEC-007 — Impedir retirar un estudiante distinto del autorizado
 
 - Requerimiento relacionado: RF09
 - Objetivo específico relacionado: OE2, OE3, OE4
-- Rol principal: Portería
-- Tipo de prueba: Seguridad funcional
-- Prioridad: Alta
-- Estado de implementación observado: Implementado y automatizado
-
-```gherkin
-Scenario: PF-RET-AUT-006 Impedir reutilizar un PIN consumido
-    Given existe un retiro autorizado con ambos PIN vigentes
-    When portería valida por primera vez el PIN del retirador
-    Then el sistema acepta el PIN y marca su identidad como validada
-    When se intenta reutilizar el mismo PIN
-    Then el servidor rechaza el segundo consumo
-    And la confirmación final registra solamente una salida
-    And el PIN continúa bloqueado después de completar el retiro
-```
-
-#### PF-RET-AUT-007 — Impedir retirar un estudiante distinto del autorizado
-
-- Requerimiento relacionado: RF09
-- Objetivo específico relacionado: OE2, OE3, OE4
-- Rol principal: Retirador autorizado
+- Rol principal: Apoderado Secundario
 - Tipo de prueba: Restricción de alcance
 - Prioridad: Alta
 - Estado de implementación observado: Implementado y automatizado
 
 ```gherkin
-Scenario: PF-RET-AUT-007 Impedir retirar un estudiante distinto del autorizado
-    Given el retirador posee autorización vigente para un único estudiante
+Scenario: PF-APO-SEC-007 Impedir retirar un estudiante distinto del autorizado
+    Given el Apoderado Secundario posee autorización vigente para un único estudiante
     Then la interfaz muestra solamente al estudiante autorizado
     When intenta solicitar mediante el servidor el retiro de otro estudiante
     Then la solicitud es rechazada como "PICKUP_NOT_AUTHORIZED"
@@ -790,7 +889,7 @@ Scenario: PF-AUT-001 Configurar el permiso de salida autónoma
 
 ```
 
-#### PF-AUT-002 — Registrar y consultar una persona autorizada para retiro
+#### PF-AUT-002 — Registrar y consultar un Apoderado Secundario
 
 - Requerimiento relacionado: RF04
 - Objetivo específico relacionado: OE1, OE2, OE4
@@ -800,15 +899,15 @@ Scenario: PF-AUT-001 Configurar el permiso de salida autónoma
 - Estado de implementación observado: Pendiente de implementación
 
 ```gherkin
-Scenario: PF-AUT-002 Registrar y consultar una persona autorizada para retiro
+Scenario: PF-AUT-002 Registrar y consultar un Apoderado Secundario
     Given soy un administrador o apoderado autenticado
-    When registro una persona autorizada con su identidad y relación con el estudiante
+    When registro un Apoderado Secundario con su identidad y relación con el estudiante
     Then la persona aparece entre las autorizadas para el retiro
     And portería puede consultar la vigencia de su autorización
 
 ```
 
-#### PF-AUT-003 — Revocar el permiso de una persona autorizada
+#### PF-AUT-003 — Revocar el permiso de un Apoderado Secundario
 
 - Requerimiento relacionado: RF04
 - Objetivo específico relacionado: OE2, OE3, OE4
@@ -818,9 +917,9 @@ Scenario: PF-AUT-002 Registrar y consultar una persona autorizada para retiro
 - Estado de implementación observado: Pendiente de implementación
 
 ```gherkin
-Scenario: PF-AUT-003 Revocar el permiso de una persona autorizada
+Scenario: PF-AUT-003 Revocar el permiso de un Apoderado Secundario
     Given soy un administrador o apoderado autenticado
-    And existe una persona autorizada para retirar a un estudiante
+    And existe un Apoderado Secundario autorizado para retirar a un estudiante
     When revoco su autorización
     Then el sistema muestra la autorización como revocada
     And portería no puede utilizarla para confirmar un nuevo retiro
@@ -927,28 +1026,8 @@ Scenario: PF-QR-005 Utilizar PIN diferentes y de un solo uso en un retiro
     When el apoderado y el estudiante consultan su PIN
     Then cada persona visualiza únicamente su propio PIN de cinco dígitos
     And ambos PIN son diferentes y muestran su vigencia
-    When portería utiliza ambos PIN para completar el retiro
+    When portería utiliza ambos PIN para completar automáticamente el retiro
     Then ninguno de los PIN puede volver a validarse
-
-```
-
-#### PF-SAU-001 — Registrar una salida autónoma
-
-- Requerimiento relacionado: RF11
-- Objetivo específico relacionado: OE3, OE4
-- Rol principal: Estudiante
-- Tipo de prueba: Flujo exitoso
-- Prioridad: Alta
-- Estado de implementación observado: Implementado
-
-```gherkin
-Scenario: PF-SAU-001 Registrar una salida autónoma
-    Given soy un estudiante autenticado
-    And estoy dentro de la institución
-    And tengo permiso para salir solo y un QR vigente
-    When selecciono "Registrar salida"
-    Then el sistema muestra "Salida registrada correctamente"
-    And mi estado cambia a "Fuera de la institución"
 
 ```
 
@@ -1015,7 +1094,7 @@ Scenario: PF-SOL-001 Crear una solicitud de autorización de salida
 
 ```
 
-#### PF-SOL-002 — Aprobar o rechazar una solicitud de salida
+#### PF-SOL-002A–002B — Aprobar o rechazar una solicitud de salida
 
 - Requerimiento relacionado: RF12
 - Objetivo específico relacionado: OE3, OE4
@@ -1025,16 +1104,21 @@ Scenario: PF-SOL-001 Crear una solicitud de autorización de salida
 - Estado de implementación observado: Implementado
 
 ```gherkin
-Scenario Outline: PF-SOL-002 Aprobar o rechazar una solicitud de salida
-    Given soy un apoderado autenticado
-    And visualizo una solicitud vigente en "Solicitudes pendientes"
-    When selecciono "<decision>"
-    Then el sistema muestra "<resultado>"
+Scenario: PF-SOL-002A Aprobar el retiro de un estudiante que no puede salir solo
+    Given el estudiante no tiene permiso para salir solo
+    And el apoderado visualiza la solicitud vigente
+    When inicia el retiro con PIN dual
+    Then la evidencia muestra el PIN del apoderado y el PIN del estudiante
+    When portería valida el PIN del apoderado y el PIN del estudiante
+    Then la segunda validación completa el retiro sin aprobación adicional de portería
+    And ambas aprobaciones permanecen visibles en verde
+    And la salida generada aparece en la trazabilidad reciente
 
-    Examples:
-      | decision | resultado                            |
-      | Aprobar  | Solicitud aprobada por el apoderado  |
-      | Rechazar | Solicitud rechazada por el apoderado |
+Scenario: PF-SOL-002B Rechazar la salida de un estudiante que no puede salir solo
+    Given el apoderado visualiza la solicitud vigente
+    When selecciona "Rechazar"
+    Then el sistema muestra "Solicitud rechazada por el apoderado"
+    And el rechazo aparece en la trazabilidad reciente
 
 ```
 
@@ -1298,28 +1382,50 @@ Scenario: PF-TRA-001 Consultar eventos recientes de la institución
 
 ```
 
-#### PF-TRA-002 — Limitar la trazabilidad según rol y vinculación
+#### PF-TRA-002A–002E — Limitar la trazabilidad según rol y vinculación
 
 - Requerimiento relacionado: RF14
 - Objetivo específico relacionado: OE2, OE3, OE4
 - Rol principal: Todos los roles
 - Tipo de prueba: Restricción de permisos
 - Prioridad: Alta
-- Estado de implementación observado: Implementado
+- Estado de implementación observado: Implementado y automatizado
 
 ```gherkin
-Scenario Outline: PF-TRA-002 Limitar la trazabilidad según rol y vinculación
-    Given estoy autenticado con rol "<rol>"
-    When consulto los eventos recientes
-    Then visualizo "<alcance>"
-    And no visualizo eventos fuera de ese alcance
+Scenario: PF-TRA-002A Aislar la trazabilidad entre familias distintas
+    Given el Apoderado A está vinculado al Estudiante 1
+    And el Apoderado B está vinculado al Estudiante 2
+    And ambos estudiantes tienen eventos identificables
+    When cada apoderado y estudiante consulta la trazabilidad reciente
+    Then visualiza únicamente los eventos de su familia
+    And cada elemento visible incluye estudiante, operación, método, resultado, descripción y fecha
 
-    Examples:
-      | rol        | alcance                                      |
-      | ADMIN      | eventos de mi institución                    |
-      | PORTERIA   | eventos de mi institución                    |
-      | APODERADO  | eventos de mis estudiantes vinculados        |
-      | ESTUDIANTE | mis propios eventos                          |
+Scenario: PF-TRA-002B Limitar administrador y portería a su institución
+    Given existen eventos identificables en la institución propia y en una institución ajena
+    When administrador y portería consultan la trazabilidad reciente
+    Then visualizan los eventos completos de su institución
+    And no visualizan el evento de la institución ajena
+
+Scenario: PF-TRA-002C Limitar al Apoderado Secundario y conservar su historial
+    Given el Apoderado Secundario tiene una autorización vigente para un estudiante
+    And existe un retiro histórico iniciado por ese Apoderado Secundario
+    When consulta la trazabilidad con autorización vigente
+    Then visualiza el evento del estudiante autorizado y su retiro histórico
+    When la autorización es revocada o queda vencida
+    Then deja de visualizar los eventos generales del estudiante
+    But conserva su propio retiro histórico con estudiante, tipo, estado, descripción y fecha
+
+Scenario: PF-TRA-002D Aislar al docente de otra institución
+    Given existen eventos identificables en dos instituciones
+    When un docente consulta la trazabilidad reciente
+    Then visualiza todos los eventos completos de su institución
+    And no visualiza eventos de la institución ajena
+
+Scenario: PF-TRA-002E Mostrar la misma trazabilidad institucional a dos docentes
+    Given dos docentes pertenecen a la misma institución
+    When ambos consultan la trazabilidad reciente
+    Then ambos visualizan exactamente los mismos elementos y datos
+    And ninguno visualiza eventos de otra institución
 
 ```
 
@@ -1361,148 +1467,167 @@ Scenario: PF-TRA-004 Informar que todavía no existen eventos
 
 ### 6.9 Validaciones y manejo de errores
 
-Las validaciones y errores se prueban junto al flujo al que pertenecen para evitar duplicación. Los escenarios principales son PF-AUTH-003, PF-AUTH-005, PF-ADM-002, PF-VIN-002, PF-ACC-002, PF-ACC-003, PF-QR-003, PF-ING-003, PF-SAL-002, PF-SAL-003, PF-RET-002, PF-RET-005, PF-RET-AUT-004, PF-RET-AUT-005, PF-RET-AUT-006, PF-RET-AUT-007, PF-REG-002, PF-SAU-003, PF-SOL-003 y PF-ADM-006.
+Las validaciones y errores se prueban junto al flujo al que pertenecen para evitar duplicación. Los escenarios principales son PF-AUTH-003, PF-AUTH-005, PF-ADM-002, PF-VIN-002A/002B, PF-ACC-002A/002B/002C, PF-ACC-003, PF-QR-003, PF-ING-003, PF-SAL-002, PF-SAL-003A/003B/003C, PF-RET-002, PF-RET-005, PF-APO-SEC-004, PF-APO-SEC-005, PF-APO-SEC-007, PF-REG-002, PF-SAU-003, PF-SOL-003 y PF-ADM-006.
 
 ## 7. Matriz de trazabilidad
+
+Convención de identificación: cuando un escenario conceptual se ejecuta para varios roles o variantes, cada fila automatizada utiliza un sufijo alfabético (`A`, `B`, `C`...). Así, el identificador base conserva su relación con el plan, pero cada resultado y evidencia del reporte tiene un ID único. Los saltos numéricos corresponden a casos pendientes o retirados y no se renumeran para evitar romper la trazabilidad histórica.
 
 | ID escenario | Nombre del escenario | Requerimiento funcional | Objetivo específico | Rol | Tipo de prueba | Estado |
 | --- | --- | --- | --- | --- | --- | --- |
 | PF-AUTH-001 | Registrar una cuenta con datos válidos | RF01 | OE2, OE4 | Usuario | Flujo exitoso | Pendiente de automatización |
-| PF-AUTH-002 | Iniciar sesión y acceder al panel correspondiente al rol | RF01 | OE2, OE4 | Todos los roles | Flujo exitoso | Automatizado |
+| PF-AUTH-002A | Iniciar sesión como administrador | RF01 | OE2, OE4 | Administrador | Flujo exitoso | Automatizado |
+| PF-AUTH-002B | Iniciar sesión como portería | RF01 | OE2, OE4 | Portería | Flujo exitoso | Automatizado |
+| PF-AUTH-002C | Iniciar sesión como docente | RF01 | OE2, OE4 | Docente | Flujo exitoso | Automatizado |
+| PF-AUTH-002D | Iniciar sesión como Apoderado Primario | RF01 | OE2, OE4 | Apoderado Primario | Flujo exitoso | Automatizado |
+| PF-AUTH-002E | Iniciar sesión como estudiante | RF01 | OE2, OE4 | Estudiante | Flujo exitoso | Automatizado |
 | PF-AUTH-003 | Rechazar credenciales incorrectas | RF01 | OE2, OE4 | Usuario | Validación | Automatizado |
 | PF-AUTH-004 | Cerrar la sesión activa | RF01 | OE2, OE4 | Usuario | Flujo exitoso | Pendiente de automatización |
 | PF-AUTH-005 | Validar la actualización de datos del perfil | RF01 | OE2, OE4 | Usuario | Validación | Pendiente de automatización |
+| PF-ACC-001 | Mostrar navegación y dashboard según el rol | RF05 | OE2, OE4 | Todos los roles | Flujo exitoso | Pendiente de automatización |
+| PF-ACC-002A | Restringir portería para Apoderado Primario | RF05 | OE2, OE4 | Apoderado Primario | Restricción de permisos | Automatizado |
+| PF-ACC-002B | Restringir portería para estudiante | RF05 | OE2, OE4 | Estudiante | Restricción de permisos | Automatizado |
+| PF-ACC-002C | Restringir portería para docente | RF05 | OE2, OE4 | Docente | Restricción de permisos | Automatizado |
+| PF-ACC-003 | Impedir la consulta de un estudiante ajeno | RF05 | OE2, OE4 | Apoderado Primario | Restricción de permisos | Automatizado |
 | PF-ADM-001 | Consultar y actualizar la configuración de un estudiante | RF02 | OE1, OE2, OE4 | Administrador | Flujo exitoso | Pendiente de automatización |
 | PF-ADM-002 | Rechazar datos inválidos al actualizar un estudiante | RF02 | OE2, OE4 | Administrador | Validación | Pendiente de automatización |
 | PF-ADM-003 | Gestionar el ciclo de vida administrativo de un estudiante | RF02 | OE1, OE2, OE4 | Administrador | Flujo alternativo | Pendiente de automatización |
-| PF-VIN-001 | Vincular un estudiante mediante un código válido | RF03 | OE2, OE4 | Apoderado | Flujo exitoso | Automatizado |
-| PF-VIN-002 | Informar códigos inválidos o vínculos duplicados | RF03 | OE2, OE4 | Apoderado | Validación | Automatizado |
-| PF-VIN-003 | Desvincular un estudiante | RF03 | OE2, OE4 | Apoderado | Flujo alternativo | Pendiente de automatización |
+| PF-VIN-001A | Vincular un estudiante mediante un código válido | RF03 | OE2, OE4 | Apoderado Primario | Flujo exitoso | Automatizado |
+| PF-VIN-001B | Consultar vínculos como Apoderado Primario | RF03 | OE2, OE4 | Apoderado Primario | Flujo exitoso | Automatizado |
+| PF-VIN-001C | Consultar vínculos como estudiante | RF03 | OE2, OE4 | Estudiante | Flujo exitoso | Automatizado |
+| PF-VIN-002A | Rechazar un código de vinculación inválido | RF03 | OE2, OE4 | Apoderado Primario | Validación | Automatizado |
+| PF-VIN-002B | Informar un vínculo duplicado | RF03 | OE2, OE4 | Apoderado Primario | Validación | Automatizado |
+| PF-VIN-003 | Desvincular un estudiante | RF03 | OE2, OE4 | Apoderado Primario | Flujo alternativo | Pendiente de automatización |
+| PF-VIN-ADM-001 | Permitir al administrador gestionar vínculos | RF03 | OE1, OE2, OE4 | Administrador | Flujo exitoso | Automatizado en estudiantes con y sin vínculos previos |
+| PF-VIN-ADM-002A | Restringir gestión administrativa para portería | RF05 | OE2, OE4 | Portería | Restricción de permisos | Automatizado |
+| PF-VIN-ADM-002B | Restringir gestión administrativa para docente | RF05 | OE2, OE4 | Docente | Restricción de permisos | Automatizado |
+| PF-VIN-ADM-002C | Restringir gestión administrativa para Apoderado Primario | RF05 | OE2, OE4 | Apoderado Primario | Restricción de permisos | Automatizado |
+| PF-VIN-ADM-002D | Restringir gestión administrativa para estudiante | RF05 | OE2, OE4 | Estudiante | Restricción de permisos | Automatizado |
+| PF-VIN-ADM-003 | Impedir que el administrador se vincule mediante código | RF03, RF05 | OE2, OE4 | Administrador | Restricción de permisos | Automatizado |
+| PF-VIN-ADM-004 | Consolidar, buscar y administrar vínculos individuales | RF03 | OE1, OE2, OE4 | Administrador | Flujo exitoso | Automatizado |
 | PF-AUT-001 | Configurar el permiso de salida autónoma | RF04 | OE1, OE2, OE4 | Administrador | Flujo exitoso | Pendiente de automatización |
-| PF-AUT-002 | Registrar y consultar una persona autorizada para retiro | RF04 | OE1, OE2, OE4 | Administrador | Flujo exitoso | Cobertura parcial mediante PF-RET-AUT-001/002 |
-| PF-AUT-003 | Revocar el permiso de una persona autorizada | RF04 | OE2, OE3, OE4 | Administrador | Restricción de permisos | Cobertura parcial mediante PF-RET-AUT-005 |
-| PF-ACC-001 | Mostrar navegación y dashboard según el rol | RF05 | OE2, OE4 | Todos los roles | Flujo exitoso | Pendiente de automatización |
-| PF-ACC-002 | Restringir una pantalla no autorizada | RF05 | OE2, OE4 | Todos los roles | Restricción de permisos | Automatizado |
-| PF-ACC-003 | Impedir la consulta de un estudiante ajeno | RF05 | OE2, OE4 | Apoderado | Restricción de permisos | Automatizado |
+| PF-AUT-002 | Registrar y consultar un Apoderado Secundario | RF04 | OE1, OE2, OE4 | Administrador | Flujo exitoso | Cobertura parcial mediante PF-APO-SEC-001/002 |
+| PF-AUT-003 | Revocar el permiso de un Apoderado Secundario | RF04 | OE2, OE3, OE4 | Administrador | Restricción de permisos | Cobertura parcial mediante PF-APO-SEC-005 |
 | PF-QR-001 | Generar una credencial QR temporal | RF06 | OE3, OE4 | Estudiante | Flujo exitoso | Pendiente de automatización |
 | PF-QR-002 | Validar una credencial QR vigente en portería | RF06 | OE3, OE4 | Portería | Flujo exitoso | Pendiente de automatización |
 | PF-QR-003 | Rechazar una credencial QR no utilizable | RF06 | OE3, OE4 | Portería | Validación | Pendiente de automatización |
 | PF-QR-004 | Aplicar validación manual controlada | RF06 | OE3, OE4 | Portería | Flujo alternativo | Pendiente de automatización |
-| PF-QR-005 | Utilizar PIN diferentes y de un solo uso en un retiro | RF06 | OE3, OE4 | Portería | Validación | Cubierto mediante PF-RET-AUT-003/006 |
-| PF-ING-001 | Registrar manualmente el ingreso de un estudiante | RF07 | OE3, OE4 | Portería | Flujo exitoso | Automatizado |
+| PF-QR-005 | Utilizar PIN diferentes y de un solo uso en un retiro | RF06 | OE3, OE4 | Portería | Validación | Cubierto mediante PF-APO-SEC-003 |
+| PF-ING-001A | Registrar manualmente el ingreso de un estudiante | RF07 | OE3, OE4 | Portería | Flujo exitoso | Automatizado |
+| PF-ING-001B | Explicar la política y validar la observación obligatoria | RF07 | OE3, OE4 | Portería | Validación de formulario | Automatizado |
 | PF-ING-002 | Registrar el ingreso de varios estudiantes de un curso | RF07 | OE3, OE4 | Portería | Flujo alternativo | Pendiente de automatización |
 | PF-ING-003 | Rechazar un ingreso duplicado | RF07 | OE3, OE4 | Portería | Validación | Automatizado |
 | PF-ING-004 | Confirmar un ingreso mediante QR | RF07 | OE3, OE4 | Portería | Flujo alternativo | Pendiente de automatización |
 | PF-SAL-001 | Registrar una salida regular manual | RF08 | OE3, OE4 | Portería | Flujo exitoso | Pendiente de automatización |
 | PF-SAL-002 | Rechazar una salida sin ingreso activo | RF08 | OE3, OE4 | Portería | Validación | Pendiente de automatización |
-| PF-SAL-003 | Exigir autenticador según la política de salida | RF08 | OE3, OE4 | Portería | Validación | Automatizado |
+| PF-SAL-003A | Exigir autenticador según la política de salida | RF08 | OE3, OE4 | Portería | Validación | Automatizado |
+| PF-SAL-003B | Permitir una salida excepcional documentada | RF08 | OE3, OE4 | Portería | Flujo excepcional | Automatizado |
+| PF-SAL-003C | Solicitar aprobación del Apoderado Primario por contingencia | RF08 | OE3, OE4 | Portería y Apoderado Primario | Flujo de contingencia | Automatizado |
 | PF-SAL-004 | Confirmar una salida regular mediante QR | RF08 | OE3, OE4 | Estudiante y Portería | Flujo exitoso de extremo a extremo | Automatizado |
-| PF-RET-001 | Notificar el retiro de un estudiante | RF09 | OE3, OE4 | Apoderado | Flujo exitoso | Automatizado |
-| PF-RET-002 | Rechazar la creación de un retiro no permitido | RF09 | OE3, OE4 | Apoderado | Validación | Pendiente de automatización |
+| PF-RET-001 | Notificar el retiro de un estudiante | RF09 | OE3, OE4 | Apoderado Primario | Flujo exitoso | Automatizado |
+| PF-RET-002 | Rechazar la creación de un retiro no permitido | RF09 | OE3, OE4 | Apoderado Primario | Validación | Pendiente de automatización |
 | PF-RET-003 | Responder una solicitud de retiro como estudiante | RF09 | OE3, OE4 | Estudiante | Flujo alternativo | Cobertura parcial: rechazo automatizado |
-| PF-RET-004 | Validar los PIN en cualquier orden | RF09 | OE3, OE4 | Portería | Flujo exitoso | Cobertura parcial: apoderado antes que estudiante |
+| PF-RET-004 | Completar un retiro como Apoderado Primario usando PIN dual | RF09 | OE3, OE4 | Portería | Flujo exitoso | Automatizado: apoderado antes que estudiante |
 | PF-RET-005 | Rechazar PIN inválidos, vencidos o bloqueados | RF09 | OE3, OE4 | Portería | Validación | Cobertura parcial: consulta de PIN vigente |
 | PF-RET-006 | Confirmar el retiro después de validar a ambas personas | RF09 | OE3, OE4 | Portería | Flujo exitoso | Automatizado |
-| PF-RET-007 | Cancelar una solicitud de retiro activa | RF09 | OE3, OE4 | Apoderado | Flujo alternativo | Pendiente de automatización |
+| PF-RET-007 | Cancelar una solicitud de retiro activa | RF09 | OE3, OE4 | Apoderado Primario | Flujo alternativo | Pendiente de automatización |
 | PF-RET-008 | Rechazar excepcionalmente el retiro en portería | RF09 | OE3, OE4 | Portería | Flujo alternativo | Pendiente de automatización |
-| PF-RET-AUT-001 | Registrar un retirador nuevo con correo y RUT | RF04 | OE2, OE3, OE4 | Apoderado | Flujo exitoso | Automatizado |
-| PF-RET-AUT-002 | Autorizar un retirador registrado previamente | RF04 | OE2, OE3, OE4 | Apoderado | Flujo alternativo | Automatizado |
-| PF-RET-AUT-003 | Completar un retiro autorizado con PIN dual | RF09 | OE2, OE3, OE4 | Retirador autorizado, Estudiante y Portería | Flujo exitoso E2E | Automatizado; requiere migración 027 |
-| PF-RET-AUT-004 | Rechazar una solicitud con autorización no vigente | RF09 | OE2, OE3, OE4 | Retirador autorizado | Restricción de permisos | Automatizado |
-| PF-RET-AUT-005 | Revocar la autorización y cancelar el retiro inmediatamente | RF04 | OE2, OE3, OE4 | Apoderado | Revocación | Automatizado |
-| PF-RET-AUT-006 | Impedir reutilizar un PIN consumido | RF09 | OE2, OE3, OE4 | Portería | Seguridad funcional | Automatizado; requiere migración 027 |
-| PF-RET-AUT-007 | Impedir retirar un estudiante distinto del autorizado | RF09 | OE2, OE3, OE4 | Retirador autorizado | Restricción de alcance | Automatizado |
+| PF-APO-SEC-001 | Registrar un Apoderado Secundario nuevo con correo y RUT | RF04 | OE2, OE3, OE4 | Apoderado Primario | Flujo exitoso | Automatizado |
+| PF-APO-SEC-002 | Autorizar un Apoderado Secundario registrado previamente | RF04 | OE2, OE3, OE4 | Apoderado Primario | Flujo alternativo | Automatizado |
+| PF-APO-SEC-003 | Completar un retiro como Apoderado Secundario usando PIN dual | RF09 | OE2, OE3, OE4 | Apoderado Secundario, Estudiante y Portería | Flujo exitoso E2E | Automatizado; requiere migración 027 |
+| PF-APO-SEC-004 | Rechazar una solicitud con autorización secundaria no vigente | RF09 | OE2, OE3, OE4 | Apoderado Secundario | Restricción de permisos | Automatizado |
+| PF-APO-SEC-005 | Revocar la autorización secundaria y cancelar el retiro inmediatamente | RF04 | OE2, OE3, OE4 | Apoderado Primario | Revocación | Automatizado |
+| PF-APO-SEC-007 | Impedir retirar un estudiante distinto del autorizado | RF09 | OE2, OE3, OE4 | Apoderado Secundario | Restricción de alcance | Automatizado |
 | PF-REG-001 | Aplicar una política institucional a un evento compatible | RF10 | OE3, OE4 | Portería | Flujo exitoso | Pendiente de automatización |
 | PF-REG-002 | Rechazar un evento contrario a una política excluyente | RF10 | OE3, OE4 | Portería | Validación | Pendiente de automatización |
 | PF-REG-003 | Registrar una contingencia sin dispositivo | RF10 | OE3, OE4 | Portería | Flujo alternativo | Pendiente de automatización |
-| PF-SAU-001 | Registrar una salida autónoma | RF11 | OE3, OE4 | Estudiante | Flujo exitoso | Automatizado |
 | PF-SAU-002 | Solicitar autorización cuando no puedo salir solo | RF11 | OE3, OE4 | Estudiante | Flujo alternativo | Pendiente de automatización |
 | PF-SAU-003 | Impedir una salida autónoma sin precondiciones | RF11 | OE3, OE4 | Estudiante | Validación | Pendiente de automatización |
 | PF-SOL-001 | Crear una solicitud de autorización de salida | RF12 | OE3, OE4 | Estudiante | Flujo exitoso | Pendiente de automatización |
-| PF-SOL-002 | Aprobar o rechazar una solicitud de salida | RF12 | OE3, OE4 | Apoderado | Flujo alternativo | Automatizado |
+| PF-SOL-002A | Aprobar el retiro de un estudiante que no puede salir solo | RF12 | OE3, OE4 | Apoderado Primario | Flujo exitoso | Automatizado |
+| PF-SOL-002B | Rechazar la salida de un estudiante que no puede salir solo | RF12 | OE3, OE4 | Apoderado Primario | Flujo alternativo | Automatizado |
 | PF-SOL-003 | Rechazar una solicitud no válida | RF12 | OE3, OE4 | Estudiante | Validación | Pendiente de automatización |
 | PF-SOL-004 | Consultar solicitudes pendientes según el rol | RF12 | OE3, OE4 | Todos los roles | Flujo alternativo | Pendiente de automatización |
 | PF-ADM-004 | Configurar la política de ingreso y salida | RF13 | OE3, OE4 | Administrador | Flujo exitoso | Pendiente de automatización |
 | PF-ADM-005 | Configurar el retiro con PIN dual | RF13 | OE3, OE4 | Administrador | Flujo exitoso | Pendiente de automatización |
 | PF-ADM-006 | Rechazar configuraciones institucionales no permitidas | RF13 | OE2, OE3, OE4 | Administrador | Validación | Pendiente de automatización |
 | PF-TRA-001 | Consultar eventos recientes de la institución | RF14 | OE1, OE3, OE4 | Portería | Flujo exitoso | Pendiente de automatización |
-| PF-TRA-002 | Limitar la trazabilidad según rol y vinculación | RF14 | OE2, OE3, OE4 | Todos los roles | Restricción de permisos | Pendiente de automatización |
+| PF-TRA-002A | Aislar trazabilidad entre familias distintas | RF14 | OE2, OE3, OE4 | Apoderados y Estudiantes | Restricción de permisos | Automatizado |
+| PF-TRA-002B | Limitar administrador y portería a su institución | RF14 | OE2, OE3, OE4 | Administrador y Portería | Restricción institucional | Automatizado |
+| PF-TRA-002C | Limitar al Apoderado Secundario y conservar su retiro histórico | RF14 | OE2, OE3, OE4 | Apoderado Secundario | Restricción temporal | Automatizado |
+| PF-TRA-002D | Aislar al docente de otra institución | RF14 | OE2, OE3, OE4 | Docente | Restricción institucional | Automatizado |
+| PF-TRA-002E | Mostrar el mismo alcance a dos docentes | RF14 | OE2, OE3, OE4 | Docentes | Consistencia por rol | Automatizado |
 | PF-TRA-003 | Consultar el registro funcional completo de una operación | RF14 | OE1, OE3, OE4 | Usuario autorizado | Flujo exitoso | Pendiente de automatización |
 | PF-TRA-004 | Informar que todavía no existen eventos | RF14 | OE3, OE4 | Usuario autorizado | Flujo alternativo | Pendiente de automatización |
-
-### 7.1 Casos automatizados complementarios
-
-La suite también contiene cuatro IDs de administración de vínculos creados después del catálogo original. Se conservan como casos complementarios para no renumerar los escenarios históricos:
-
-| ID | Cobertura | Requerimiento | Estado |
-| --- | --- | --- | --- |
-| PF-VIN-ADM-001 | Gestión administrativa de vinculaciones existentes | RF03 | Automatizado |
-| PF-VIN-ADM-002 | Restricción de la gestión para roles no administradores | RF05 | Automatizado |
-| PF-VIN-ADM-003 | Impedir que el administrador se vincule mediante código | RF03 | Automatizado |
-| PF-VIN-ADM-004 | Consolidación, búsqueda y acciones por vínculo individual | RF03 | Automatizado |
 
 ## 8. Observaciones y funcionalidades pendientes
 
 1. **RF01:** no se observó recuperación de contraseña. El registro no permite escoger rol y algunos errores provienen directamente del proveedor de autenticación.
 2. **RF02:** existe consulta y actualización parcial del estudiante, pero no una interfaz administrativa completa para crear, asignar curso y desactivar. PF-ADM-003 queda pendiente de implementación.
 3. **RF03:** la vinculación acepta códigos inválidos y duplicados, pero no se observó vencimiento de códigos de vinculación.
-4. **RF04:** existe interfaz para registrar o reutilizar un retirador mediante correo y RUT, asignarle un estudiante con vigencia y revocar anticipadamente la autorización. No existe todavía edición directa del período: el apoderado debe revocar y crear una nueva autorización.
-5. **RF05:** el código define seis roles, incluido `RETIRADOR_AUTORIZADO`, mientras la métrica de OE2 declara acceso diferenciado para cuatro roles. Debe actualizarse o aclararse el universo de esa métrica.
+4. **RF04:** existe interfaz para registrar o reutilizar un Apoderado Secundario mediante correo y RUT, asignarle un estudiante con vigencia y revocar anticipadamente la autorización. No existe todavía edición directa del período: el Apoderado Primario debe revocar y crear una nueva autorización.
+5. **RF05:** el código define seis roles técnicos, incluido `RETIRADOR_AUTORIZADO`, presentado funcionalmente como Apoderado Secundario, mientras la métrica de OE2 declara acceso diferenciado para cuatro roles. Debe actualizarse o aclararse el universo de esa métrica.
 6. **RF06:** el QR es temporal y de un solo uso, pero la interfaz actual valida un payload pegado o escaneado externamente; no se observó lector de cámara ni revocación explícita por el usuario.
 7. **RF08 y RF10:** se aplican estado, permiso, autenticador, observación y contingencia; no se observó una validación completa de horarios institucionales para la salida regular.
-8. **RF09:** el repositorio contiene retiro con PIN dual, cancelación, rechazo en portería y retiro por persona temporalmente autorizada. Los casos PF-RET-AUT-003 y PF-RET-AUT-006 requieren que la migración `027_fix_confirm_guardian_pickup_request_id.sql` esté aplicada para completar la confirmación final.
+8. **RF09:** el repositorio contiene retiro con PIN dual, cancelación, rechazo en portería y retiro por Apoderado Secundario temporalmente autorizado. PF-APO-SEC-003 requiere que la migración `027_fix_confirm_guardian_pickup_request_id.sql` esté aplicada para completar la confirmación final.
 9. **RF12:** existen solicitudes de salida con aprobación o rechazo y solicitudes de retiro cancelables; no se observó cancelación del flujo de autorización iniciado por el estudiante.
 10. **RF13:** se configuran reglas de autenticador y parámetros del PIN dual, pero no horarios, gestión general de roles ni todos los criterios descritos por RF13.
 11. **RF14:** se muestran eventos recientes y alcance por rol, pero no existe una vista de historial integral con filtros y responsable visible en cada registro. PF-TRA-003 queda pendiente.
-12. Existe una suite Playwright ejecutable con **46 pruebas descubiertas** en Chromium: 45 pruebas funcionales y un smoke de demo. Representa 28 IDs funcionales distintos; algunos escenarios del plan mantienen cobertura parcial porque la prueba automatiza solo una de sus variantes.
+12. Existe una suite funcional Playwright ejecutable con **47 pruebas descubiertas** en Chromium y **47 IDs únicos**. El smoke de demo utiliza una configuración independiente y no forma parte del informe funcional.
 13. **Control de interfaz:** el detalle muestra “Configuración del estudiante” a usuarios vinculados que no son administradores, aunque la actualización queda limitada por las políticas de datos. La visibilidad de esa acción debería alinearse con el permiso declarado para evitar un rechazo tardío y genérico.
 14. **Control de rutas:** la navegación oculta “Vincular estudiante” a roles sin permiso, pero la ruta de vinculación no realiza por sí sola la misma comprobación de rol. Debe reforzarse antes de aprobar completamente RF05.
 15. **Acceso del estudiante:** la consulta del detalle usa la vinculación de apoderado para usuarios que no son personal institucional; conviene verificar y corregir el acceso del estudiante a su propia ficha.
 
 ### Resumen de cobertura
 
-- Cantidad total de escenarios: **62**.
-- IDs funcionales con alguna automatización ejecutable: **28**.
-- Pruebas Playwright descubiertas: **46** (45 funcionales y 1 smoke de demo).
+- Filas de la matriz funcional principal: **84**, todas con identificador único.
+- IDs funcionales automatizados ejecutables: **47**.
+- Pruebas descubiertas por la configuración funcional de Playwright: **47**.
+- Smoke técnico de demo: **1**, ejecutado separadamente y excluido del informe funcional.
 - Requerimientos sin cobertura: **ninguno**.
 - Objetivos específicos sin cobertura: **ninguno**.
 
 | Rol principal | Escenarios |
 | --- | ---: |
-| Administrador | 9 |
-| Apoderado | 11 |
-| Estudiante | 7 |
-| Portería | 21 |
-| Todos los roles | 5 |
+| Administrador | 13 |
+| Administrador y Portería | 1 |
+| Apoderado Primario | 17 |
+| Apoderado Secundario | 3 |
+| Apoderado Secundario, Estudiante y Portería | 1 |
+| Apoderados y Estudiantes | 1 |
+| Docente | 4 |
+| Docentes | 1 |
+| Estudiante | 10 |
+| Estudiante y Portería | 1 |
+| Portería | 23 |
+| Portería y Apoderado Primario | 1 |
+| Todos los roles | 2 |
 | Usuario | 4 |
 | Usuario autorizado | 2 |
-| Retirador autorizado | 2 |
-| Retirador autorizado, Estudiante y Portería | 1 |
-| Docente (escenario exclusivo) | 0 |
 
-Los `Scenario Outline` clasificados como “Todos los roles” incluyen al Docente cuando aparece en sus ejemplos; el cero anterior indica que no existe un escenario cuyo rol principal sea exclusivamente Docente.
+Los escenarios PF-TRA-002D y PF-TRA-002E documentan explícitamente el alcance institucional compartido por los docentes durante el MVP.
 
 | Requerimiento | Escenarios |
 | --- | ---: |
-| RF01 | 5 |
+| RF01 | 9 |
 | RF02 | 3 |
-| RF03 | 3 |
+| RF03 | 9 |
 | RF04 | 6 |
-| RF05 | 3 |
+| RF05 | 10 |
 | RF06 | 5 |
-| RF07 | 4 |
-| RF08 | 4 |
-| RF09 | 12 |
+| RF07 | 5 |
+| RF08 | 6 |
+| RF09 | 11 |
 | RF10 | 3 |
-| RF11 | 3 |
-| RF12 | 4 |
+| RF11 | 2 |
+| RF12 | 5 |
 | RF13 | 3 |
-| RF14 | 4 |
+| RF14 | 8 |
 
 ### Próximas brechas recomendadas para automatización
 
 1. Completar PF-RET-003, PF-RET-004 y PF-RET-005 con aceptación/rechazo, orden inverso de PIN y PIN incorrecto, vencido o bloqueado por intentos.
 2. Automatizar PF-RET-007 y PF-RET-008: cancelación voluntaria y rechazo excepcional en portería.
 3. Automatizar PF-SAU-003 y PF-SOL-001/003/004 para cubrir restricciones y consulta por rol.
-4. Automatizar PF-TRA-001 y PF-TRA-002 para demostrar evidencia visible y aislamiento de trazabilidad.
+4. Automatizar PF-TRA-001 para ampliar la consulta operacional de eventos recientes de portería.
 5. Incorporar expiración temporal de autorizaciones y edición/reemplazo de períodos como nuevos escenarios RF04.

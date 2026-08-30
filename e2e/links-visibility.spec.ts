@@ -8,7 +8,9 @@ test.describe('Visibilidad de vínculos', () => {
   test.beforeEach(async () => resetE2EState());
 
   for (const role of ['APODERADO', 'ESTUDIANTE'] as E2ERole[]) {
-    test(`PF-VIN-001 — ${role} consulta sus vínculos`, async ({ page }) => {
+    const roleDisplayName = role === 'APODERADO' ? 'Apoderado Primario' : role;
+    const caseId = role === 'APODERADO' ? 'PF-VIN-001B' : 'PF-VIN-001C';
+    test(`${caseId} — ${roleDisplayName} consulta sus vínculos`, async ({ page }) => {
       await login(page, role);
       await page.goto('/links');
 
@@ -17,7 +19,7 @@ test.describe('Visibilidad de vínculos', () => {
       await expect(page.locator('article').filter({ hasText: 'Estudiante E2E Dentro' })).toBeVisible();
 
       if (role === 'APODERADO') {
-        await expect(page.getByLabel('Estudiante')).toContainText('Estudiante E2E Dentro');
+        await expect(page.getByLabel('Estudiante', { exact: true })).toContainText('Estudiante E2E Dentro');
       }
     });
   }

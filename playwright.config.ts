@@ -34,6 +34,9 @@ process.env.E2E_REPORT_RUN_ID = reportRunId;
 export default defineConfig({
   testDir: './e2e',
   testMatch: '**/*.spec.ts',
+  // El smoke de disponibilidad tiene su configuración y comando propios
+  // (`npm run test:demo`); no forma parte del informe funcional PF.
+  testIgnore: 'demo-smoke.spec.ts',
   globalSetup: './e2e/global-setup.ts',
   fullyParallel: false,
   workers: 1,

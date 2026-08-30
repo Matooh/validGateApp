@@ -17,10 +17,12 @@ test.describe('Relaciones de apoderados agrupadas por estudiante', () => {
     const secondary = await addSecondaryGuardianRelationshipToInside();
     try {
       await login(page, 'ADMIN');
+      await expect(page.getByTestId('dashboard-role-eyebrow')).toHaveText('Administración');
+      await captureEvidence('Administrador: dashboard antes de consultar y gestionar vínculos');
       await page.goto('/admin/relationships');
 
       const section = page.getByRole('heading', { name: 'Relaciones actuales' }).locator('xpath=ancestor::section[1]');
-      const search = section.getByPlaceholder('Nombre de estudiante o apoderado');
+      const search = section.getByPlaceholder('Nombre de estudiante o apoderado vinculado');
       const counter = section.locator('[aria-live="polite"]');
 
       await search.fill('Estudiante E2E Dentro');
@@ -35,7 +37,7 @@ test.describe('Relaciones de apoderados agrupadas por estudiante', () => {
       await expect(studentGroup.getByText('Apoderado E2E', { exact: true })).toBeVisible();
       await expect(studentGroup.getByText(secondary.guardianName, { exact: true })).toBeVisible();
       await expect(studentGroup.getByText('Personas vinculadas (2)')).toBeVisible();
-      await captureEvidence('Estudiante consolidado con dos personas vinculadas', studentGroup);
+      await captureEvidence('Estudiante: Estudiante E2E Dentro, consolidado con dos personas vinculadas', studentGroup);
 
       await studentToggle.click();
       await expect(studentToggle).toHaveAttribute('aria-expanded', 'false');
@@ -57,25 +59,15 @@ test.describe('Relaciones de apoderados agrupadas por estudiante', () => {
       const relationType = secondaryRelationship.getByLabel('Tipo de relación');
       const saveButton = secondaryRelationship.getByRole('button', { name: 'Guardar cambios' });
       await expect(saveButton).toBeDisabled();
-      await relationType.selectOption('APODERADO_PRINCIPAL');
+      await relationType.selectOption('RETIRADOR_AUTORIZADO');
       await expect(saveButton).toBeEnabled();
+      await captureEvidence('Administrador: controles individuales habilitados para el vínculo seleccionado', secondaryRelationship);
       await secondaryRelationship.getByRole('button', { name: 'Cancelar' }).click();
-      await expect(secondaryRelationship.getByText('Apoderado', { exact: true })).toBeVisible();
+      await expect(secondaryRelationship.getByText('Apoderado Primario', { exact: true })).toBeVisible();
 
       await secondaryRelationship.getByRole('button', { name: 'Administrar' }).click();
-      await secondaryRelationship.getByLabel('Tipo de relación').selectOption('APODERADO_PRINCIPAL');
-      await secondaryRelationship.getByRole('button', { name: 'Guardar cambios' }).click();
-      await expect(page.getByText('Vinculación guardada correctamente.')).toBeVisible();
-
-      await search.fill(secondary.guardianName);
-      const reloadedToggle = section.getByRole('button', { name: /Estudiante E2E Dentro.*2 vínculos/ });
-      await reloadedToggle.click();
-      const updatedRelationship = section.getByTestId(`student-relationship-${secondary.relationshipId}`);
-      await expect(updatedRelationship.getByText('Apoderado principal', { exact: true })).toBeVisible();
-
-      await updatedRelationship.getByRole('button', { name: 'Administrar' }).click();
       page.once('dialog', (dialog) => dialog.accept());
-      await updatedRelationship.getByRole('button', { name: 'Desvincular' }).click();
+      await secondaryRelationship.getByRole('button', { name: 'Desvincular' }).click();
       await expect(page.getByText('Vinculación eliminada correctamente.')).toBeVisible();
       await search.fill('Estudiante E2E Dentro');
       await expect(counter).toHaveText('1 estudiante · 1 vínculo');

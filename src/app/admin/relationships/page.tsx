@@ -67,9 +67,9 @@ export default async function GuardianRelationshipsPage({
 
       <section className="mx-auto max-w-6xl space-y-6 px-6 py-8">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Vinculación Apoderado-Estudiante</h1>
+          <h1 className="text-3xl font-bold text-slate-900">Vinculación Apoderado Primario-Estudiante</h1>
           <p className="mt-2 text-slate-600">
-            Relaciona cuentas de apoderado existentes con estudiantes de tu institución.
+            Relaciona cuentas de Apoderado Primario existentes con estudiantes de tu institución.
           </p>
         </div>
 
@@ -89,7 +89,7 @@ export default async function GuardianRelationshipsPage({
           <div>
             <h2 className="text-xl font-semibold text-slate-900">Agregar vinculación</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Solo se muestran estudiantes y apoderados asociados a tu institución.
+              Solo se muestran estudiantes y Apoderados Primarios asociados a tu institución.
             </p>
           </div>
 
@@ -107,9 +107,9 @@ export default async function GuardianRelationshipsPage({
             </div>
 
             <div>
-              <label htmlFor="guardian_profile_id" className="mb-2 block text-sm font-medium text-slate-700">Apoderado</label>
+              <label htmlFor="guardian_profile_id" className="mb-2 block text-sm font-medium text-slate-700">Apoderado Primario</label>
               <select id="guardian_profile_id" name="guardian_profile_id" required disabled={!canCreateRelationship} className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 disabled:bg-slate-100">
-                <option value="">Selecciona un apoderado</option>
+                <option value="">Selecciona un Apoderado Primario</option>
                 {guardians.map((guardian) => (
                   <option key={guardian.profile_id} value={guardian.profile_id}>
                     {guardian.guardian_name} · {guardian.guardian_email}
@@ -122,7 +122,7 @@ export default async function GuardianRelationshipsPage({
           </div>
 
           {!guardians.length && !hasLoadError ? (
-            <p className="text-sm text-amber-700">No hay cuentas con rol APODERADO disponibles en esta institución.</p>
+            <p className="text-sm text-amber-700">No hay cuentas de Apoderado Primario disponibles en esta institución.</p>
           ) : null}
           {!students.length && !hasLoadError ? (
             <p className="text-sm text-amber-700">No hay estudiantes registrados en esta institución.</p>
