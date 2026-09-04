@@ -21,6 +21,7 @@ const BADGES: Record<string, BadgeDefinition> = {
   VENCIDO: { label: 'Vencido', symbol: '—', className: 'border-gray-200 bg-gray-100 text-gray-700' },
   CANCELLED: { label: 'Cancelado', symbol: '—', className: 'border-slate-200 bg-slate-100 text-slate-700' },
   CANCELED: { label: 'Cancelado', symbol: '—', className: 'border-slate-200 bg-slate-100 text-slate-700' },
+  COMPLETED: { label: 'Completado', symbol: '✓', className: 'border-green-200 bg-green-100 text-green-800' },
   ANULADO: { label: 'Anulado', symbol: '—', className: 'border-slate-200 bg-slate-100 text-slate-700' },
   MANUAL: { label: 'Manual', symbol: '◆', className: 'border-orange-200 bg-orange-100 text-orange-800' },
   CONTINGENCIA: { label: 'Contingencia', symbol: '◆', className: 'border-orange-200 bg-orange-100 text-orange-800' },

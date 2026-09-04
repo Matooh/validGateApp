@@ -42,7 +42,7 @@ export default async function LoginPage({
           </div>
 
           <p className="mt-6 text-center text-sm text-slate-500">
-            Version 1.0.0
+            Version 1.1.0
           </p>
         </section>
       </div>

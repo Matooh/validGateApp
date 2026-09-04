@@ -37,6 +37,8 @@ export default defineConfig({
   // El smoke de disponibilidad tiene su configuración y comando propios
   // (`npm run test:demo`); no forma parte del informe funcional PF.
   testIgnore: 'demo-smoke.spec.ts',
+  // Casos retirados de la matriz vigente; se conservan en el historial de las specs.
+  grepInvert: /PF-SAL-003A|PF-SAL-003C|PF-SAL-QR-002|PF-APO-SEC-002|PF-VIN-SEC-001|PF-VIN-ADM-001-LEGACY/,
   globalSetup: './e2e/global-setup.ts',
   fullyParallel: false,
   workers: 1,

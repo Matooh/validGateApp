@@ -23,8 +23,8 @@ test('DEMO-SMOKE-001 — disponibilidad, protección y login de administrador', 
   });
 
   await test.step('Supabase Auth permite iniciar sesión y cargar el dashboard', async () => {
-    await page.getByLabel('Email').fill(credentials.email);
-    await page.getByLabel('Password').fill(credentials.password);
+    await page.locator('#email').fill(credentials.email);
+    await page.locator('#password').fill(credentials.password);
     await page.getByRole('button', { name: 'Login' }).click();
     await expect(page).toHaveURL(/\/dashboard/);
     await expect(page.getByTestId('dashboard-role-eyebrow')).toHaveText('Administración');

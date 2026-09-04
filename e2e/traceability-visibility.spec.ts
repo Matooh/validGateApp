@@ -156,15 +156,19 @@ test.describe('Aislamiento de trazabilidad según rol y vinculación', () => {
     const fixtures = await prepareTraceabilityFixtures();
 
     await login(page, 'DOCENTE');
+    await expect(page.getByTestId('dashboard-role-eyebrow')).toHaveText('Docencia');
+    await captureEvidence('Docente: Dashboard de su institución antes de revisar la trazabilidad');
     const section = traceabilitySection(page);
     await expectInstitutionTraceability(section, fixtures);
     await captureEvidence('Docente: trazabilidad institucional completa con datos y evento ajeno ausente', section);
   });
 
-  test('PF-TRA-002E — Mostrar la misma trazabilidad institucional a dos docentes', async ({ page, captureEvidence }) => {
+  test('PF-TRA-002E — Mostrar la misma trazabilidad institucional a dos docentes de la misma institución', async ({ page, captureEvidence }) => {
     const fixtures = await prepareTraceabilityFixtures();
 
     await login(page, 'DOCENTE');
+    await expect(page.getByTestId('dashboard-role-eyebrow')).toHaveText('Docencia');
+    await captureEvidence('Docente A: Dashboard de la misma institución');
     let section = traceabilitySection(page);
     await expectInstitutionTraceability(section, fixtures);
     const primarySnapshot = await traceabilitySnapshot(section, fixtures.marker);
@@ -173,10 +177,38 @@ test.describe('Aislamiento de trazabilidad según rol y vinculación', () => {
 
     await changeIdentity(page);
     await loginWithCredentials(page, fixtures.teacherB.email, fixtures.teacherB.password, fixtures.teacherB.role);
+    await expect(page.getByTestId('dashboard-role-eyebrow')).toHaveText('Docencia');
+    await captureEvidence('Docente B: Dashboard de la misma institución');
     section = traceabilitySection(page);
     await expectInstitutionTraceability(section, fixtures);
     const secondarySnapshot = await traceabilitySnapshot(section, fixtures.marker);
     expect(secondarySnapshot).toEqual(primarySnapshot);
     await captureEvidence('Docente B: exactamente los mismos elementos y datos que el docente A', section);
+  });
+  test('PF-TRA-002F — Mostrar distinta trazabilidad institucional a dos docentes de diferentes instituciones', async ({ page, captureEvidence }) => {
+    const fixtures = await prepareTraceabilityFixtures();
+
+    await login(page, 'DOCENTE');
+    await expect(page.getByTestId('dashboard-role-eyebrow')).toHaveText('Docencia');
+    await captureEvidence('Docente A: Dashboard de su institución');
+    let section = traceabilitySection(page);
+    await expectEventData(section, fixtures.events.familyA);
+    await expectEventData(section, fixtures.events.familyB);
+    await expectEventHidden(section, fixtures.events.foreign);
+    const primarySnapshot = await traceabilitySnapshot(section, fixtures.marker);
+    await captureEvidence('Docente A: trazabilidad de su institución, sin eventos de la institución ajena', section);
+
+    await changeIdentity(page);
+    await loginWithCredentials(page, fixtures.teacherForeign.email, fixtures.teacherForeign.password, fixtures.teacherForeign.role);
+    await expect(page.getByTestId('dashboard-role-eyebrow')).toHaveText('Docencia');
+    await expect(page.getByText(fixtures.foreignInstitutionName, { exact: true })).toBeVisible();
+    await captureEvidence('Docente B: Dashboard de una institución diferente');
+    section = traceabilitySection(page);
+    await expectEventData(section, fixtures.events.foreign);
+    await expectEventHidden(section, fixtures.events.familyA);
+    await expectEventHidden(section, fixtures.events.familyB);
+    const foreignSnapshot = await traceabilitySnapshot(section, fixtures.marker);
+    expect(foreignSnapshot).not.toEqual(primarySnapshot);
+    await captureEvidence('Docente B: trazabilidad diferente y aislada de su institución', section);
   });
 });

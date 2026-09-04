@@ -5,6 +5,7 @@ import { useFormStatus } from 'react-dom';
 
 import { recordAccessEventAction } from '@/app/actions/access';
 import type { AccessPolicy } from '@/lib/types';
+import { SearchableCombobox } from '@/components/searchable-combobox';
 
 type StudentOption = {
   id: number;
@@ -145,21 +146,23 @@ export function RecordAccessForm({
 
   const visibleStudents = useMemo(() => {
     return students.filter((student) => {
+      if (courseId && String(student.course_id ?? '') !== courseId) return false;
       if (!normalizedStudentQuery) return true;
       const fullName = `${student.first_name} ${student.last_name}`.toLowerCase();
       return fullName.includes(normalizedStudentQuery);
+
     });
-  }, [students, normalizedStudentQuery]);
+  }, [students, normalizedStudentQuery, courseId]);
 
   const studentSuggestions = useMemo(() => {
     if (!normalizedStudentQuery) return [];
     return students
       .filter((student) => {
         const fullName = `${student.first_name} ${student.last_name}`.toLowerCase();
-        return fullName.includes(normalizedStudentQuery);
+      return (!courseId || String(student.course_id ?? '') === courseId) && fullName.includes(normalizedStudentQuery);
       })
       .slice(0, 8);
-  }, [students, normalizedStudentQuery]);
+  }, [students, normalizedStudentQuery, courseId]);
 
   const courseStudents = useMemo(() => {
     return students.filter((student) => {
@@ -645,12 +648,23 @@ export function RecordAccessForm({
 
       {searchMode === 'student' ? (
         <>
-          <div className="md:col-span-2" ref={suggestionsRef}>
+          <div className="md:col-span-2">
+            <label htmlFor="guard-course-filter" className="mb-2 block text-sm font-medium text-slate-700">Curso</label>
+            <SearchableCombobox id="guard-course-filter" name="guard_course_filter" value={courseId} disabled={Boolean(selectedStudentId)} onChange={(value) => { setCourseId(value); setSelectedStudentId(''); setStudentQuery(''); setWarnings([]); }} placeholder="Selecciona un curso" options={courses.map((course) => ({ value: String(course.id), label: course.name }))} />
+          </div>
+          <div className="md:col-span-2">
+            <label htmlFor="guard-student-picker" className="mb-2 block text-sm font-medium text-slate-700">Nombre Estudiante</label>
+            <SearchableCombobox id="guard-student-picker" name="student_picker" value={selectedStudentId} onChange={(value) => { const selected = students.find((student) => String(student.id) === value); setSelectedStudentId(value); setStudentQuery(selected ? `${selected.first_name} ${selected.last_name}` : ''); if (selected) setCourseId(String(selected.course_id ?? '')); setWarnings([]); }} placeholder="Selecciona un estudiante" options={visibleStudents.map((student) => ({ value: String(student.id), label: `${student.first_name} ${student.last_name} · ${student.is_in_institution ? 'En institución' : 'Fuera'}` }))} required />
+          </div>
+          <div className="md:col-span-2 hidden" ref={suggestionsRef}>
             <label htmlFor="student_search" className="mb-2 block text-sm font-medium text-slate-700">
               Buscador de estudiante
             </label>
             <input
               id="student_search"
+              role="combobox"
+              aria-expanded={showStudentSuggestions}
+              aria-controls="student-search-options"
               type="text"
               value={studentQuery}
               onChange={(event) => {
@@ -665,7 +679,7 @@ export function RecordAccessForm({
             />
 
             {showStudentSuggestions && normalizedStudentQuery ? (
-              <div className="mt-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+              <div id="student-search-options" role="listbox" className="mt-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
                 {studentSuggestions.length > 0 ? (
                   <ul className="space-y-1">
                     {studentSuggestions.map((student) => (
@@ -676,6 +690,7 @@ export function RecordAccessForm({
                           onClick={() => {
                             setStudentQuery(`${student.first_name} ${student.last_name}`);
                             setSelectedStudentId(String(student.id));
+                            setCourseId(String(student.course_id ?? ''));
                             setShowStudentSuggestions(false);
                             setWarnings([]);
                           }}
@@ -695,7 +710,7 @@ export function RecordAccessForm({
           </div>
 
           <div className="md:col-span-2">
-            <label htmlFor="student_id" className={fieldLabelClass(studentIsMissing)}>
+            <label htmlFor="student_id" className={`${fieldLabelClass(studentIsMissing)} sr-only`}>
               Estudiante
               <RequiredMark />
             </label>
@@ -709,7 +724,7 @@ export function RecordAccessForm({
               }}
               onKeyDown={handleBlockedEnter}
               disabled={!hasStudents}
-              className={fieldClass(studentIsMissing)}
+              className={`${fieldClass(studentIsMissing)} hidden`}
             >
               <option value="">Selecciona un estudiante</option>
               {visibleStudents.map((student) => (

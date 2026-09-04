@@ -5,11 +5,12 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { requireUser } from '@/lib/auth';
 import { normalizeChileMobilePhone } from '@/lib/chile/phone';
 import { normalizeRut } from '@/lib/chile/rut';
 import { APP_MESSAGES } from '@/lib/messages';
-import { validatePassword } from '@/lib/password';
+import { MIN_PASSWORD_LENGTH, validatePassword } from '@/lib/password';
 import type { FormState } from '@/lib/types';
 
 const SESSION_PERSISTENCE_COOKIE = 'validgate-session-persistence';
@@ -64,25 +65,84 @@ export async function signUpAction(_: FormState, formData: FormData): Promise<Fo
   const password = String(formData.get('password') ?? '').trim();
   const firstName = String(formData.get('first_name') ?? '').trim();
   const lastName = String(formData.get('last_name') ?? '').trim();
+  const rutValue = String(formData.get('rut') ?? '').trim();
+  const rut = normalizeRut(rutValue);
+  const confirmPassword = String(formData.get('confirm_password') ?? '').trim();
+  const institutionId = Number(formData.get('institution_id'));
+  const formValues = {
+    first_name: firstName,
+    last_name: lastName,
+    email,
+    rut: rutValue,
+    institution_id: String(formData.get('institution_id') ?? ''),
+  };
 
-  if (!email || !password) {
-    return { success: false, message: 'Debes ingresar user y password.' };
+  if (!firstName || !lastName || !email || !rutValue || !password || !confirmPassword || !Number.isInteger(institutionId) || institutionId <= 0) {
+    return { success: false, message: 'Todos los campos son obligatorios.', formValues };
+  }
+  if (!rut) {
+    return { success: false, message: 'Ingresa un RUT chileno válido.', formValues };
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { success: false, message: 'Ingresa un correo electrónico válido.', formValues };
+  }
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return { success: false, message: `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`, formValues };
+  }
+  if (password !== confirmPassword) {
+    return { success: false, message: 'Las contraseñas no coinciden.', formValues };
+  }
+
+  const admin = createAdminClient();
+  if (!admin) return { success: false, message: 'El registro no está disponible en este momento.', formValues };
+
+  const { data: existingRut, error: rutLookupError } = await admin
+    .from('profiles')
+    .select('id')
+    .eq('rut', rut)
+    .maybeSingle();
+  if (rutLookupError) {
+    console.error('sign_up_rut_lookup_error', { code: rutLookupError.code, message: rutLookupError.message });
+    return { success: false, message: 'No fue posible validar el RUT. Inténtalo nuevamente.', formValues };
+  }
+  if (existingRut) {
+    return { success: false, message: 'Ya existe una cuenta registrada con ese RUT.', formValues };
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: {
         first_name: firstName,
         last_name: lastName,
+        validgate_rut: rut,
       },
     },
   });
 
   if (error) {
-    return { success: false, message: error.message };
+    const errorMessage = error.message.toLowerCase();
+    if (errorMessage.includes('password') && errorMessage.includes('6')) {
+      return { success: false, message: `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`, formValues };
+    }
+    if (
+      errorMessage.includes('already registered') ||
+      errorMessage.includes('already been registered') ||
+      errorMessage.includes('user already exists') ||
+      (errorMessage.includes('email') && errorMessage.includes('exists'))
+    ) {
+      return { success: false, message: 'Ya existe una cuenta registrada con ese correo electrónico.', formValues };
+    }
+    console.error('sign_up_error', { code: error.code, status: error.status, message: error.message });
+    return { success: false, message: 'No fue posible crear la cuenta. Inténtalo nuevamente.', formValues };
+  }
+
+  const { error: profileError } = await admin.from('profiles').update({ institution_id: institutionId }).eq('id', data.user?.id ?? '');
+  if (profileError) {
+    console.error('sign_up_profile_error', { code: profileError.code, message: profileError.message });
+    return { success: false, message: 'La cuenta fue creada, pero no se pudo asociar a la institución.', formValues };
   }
 
   redirect('/?message=Registro+exitoso');
@@ -287,4 +347,35 @@ export async function updateAccessPolicyAction(formData: FormData) {
   revalidatePath('/guard');
   revalidatePath('/settings');
   redirect('/settings?message=Política+de+acceso+actualizada');
+}
+
+export async function updateUserRoleAction(formData: FormData) {
+  const { profile } = await requireUser();
+  if (profile?.role !== 'ADMIN' || !profile.institution_id) {
+    redirect('/dashboard?kind=error&message=No+tienes+permisos+para+gestionar+usuarios');
+  }
+
+  const userId = String(formData.get('user_id') ?? '').trim();
+  const role = String(formData.get('role') ?? '').trim();
+  const allowedRoles = ['APODERADO', 'PORTERIA', 'DOCENTE', 'ESTUDIANTE', 'PENDIENTE'];
+  if (!userId || !allowedRoles.includes(role)) {
+    redirect('/admin/users?kind=error&message=El+usuario+o+rol+seleccionado+no+es+válido');
+  }
+
+  const admin = createAdminClient();
+  if (!admin) redirect('/admin/users?kind=error&message=La+gestión+de+usuarios+no+está+disponible');
+
+  const { data: target } = await admin.from('profiles').select('id').eq('id', userId).eq('institution_id', profile.institution_id).maybeSingle();
+  if (!target || target.id === profile.id) {
+    redirect('/admin/users?kind=error&message=No+puedes+modificar+ese+usuario');
+  }
+
+  const { error } = await admin.from('profiles').update({ role }).eq('id', userId).eq('institution_id', profile.institution_id);
+  if (error) {
+    console.error('update_user_role_error', { code: error.code, message: error.message });
+    redirect('/admin/users?kind=error&message=No+se+pudo+actualizar+el+rol');
+  }
+
+  revalidatePath('/admin/users');
+  redirect('/admin/users?kind=success&message=Rol+actualizado+correctamente');
 }

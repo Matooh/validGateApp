@@ -21,12 +21,14 @@ type LinkedStudent = {
         first_name: string;
         last_name: string;
         is_in_institution: boolean;
+        can_leave_alone: boolean;
       }
     | {
         id: number;
         first_name: string;
         last_name: string;
         is_in_institution: boolean;
+        can_leave_alone: boolean;
       }[]
     | null;
 };
@@ -57,7 +59,7 @@ export default async function AuthenticationsPage() {
     profile?.role === 'APODERADO'
       ? await supabase
           .from('guardian_students')
-          .select('id, relation_type, students(id, first_name, last_name, is_in_institution)')
+          .select('id, relation_type, students(id, first_name, last_name, is_in_institution, can_leave_alone)')
           .eq('guardian_profile_id', user.id)
           .order('id', { ascending: true })
       : { data: [] };
@@ -195,6 +197,8 @@ export default async function AuthenticationsPage() {
                         studentId={student.id}
                         initialCredentialId={activeQr?.id}
                         initialExpiresAt={activeQr?.expires_at}
+                        canLeaveAlone={student.can_leave_alone}
+                        isInInstitution={student.is_in_institution}
                       />
                     );
                   })()
@@ -228,6 +232,8 @@ export default async function AuthenticationsPage() {
                   studentId={currentStudent?.studentId}
                   initialCredentialId={activeQr?.id}
                   initialExpiresAt={activeQr?.expires_at}
+                  canLeaveAlone={currentStudent?.canLeaveAlone}
+                  isInInstitution={currentStudent?.isInInstitution}
                 />
               );
             })()

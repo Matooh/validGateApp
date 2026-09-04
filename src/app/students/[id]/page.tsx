@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { updateAttendanceStatusAction, updateStudentAction } from '@/app/actions/students';
 import { AppNav } from '@/components/app-nav';
 import { PendingSubmitButton } from '@/components/pending-submit-button';
+import { StudentConfigurationForm } from '@/components/student-configuration-form';
 import { requireUser } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 
@@ -75,12 +76,39 @@ export default async function StudentDetailPage({
     .eq('student_id', studentId)
     .eq('attendance_date', new Date().toISOString().slice(0, 10));
 
-  const { data: guardianLinks } = await supabase.rpc('get_student_guardian_links', {
+  const { data: guardianLinks } = await supabase.rpc('list_visible_student_links');
+  const visibleLinks = ((guardianLinks ?? []) as Array<{
+    relation_id: number;
+    student_id: number;
+    student_name: string;
+    institution_name: string;
+    person_profile_id: string;
+    person_name: string;
+    relation_type: string;
+    valid_from: string | null;
+    valid_until: string | null;
+  }>).filter((link) => link.student_id === studentId);
+
+  /* El listado antiguo solo devolvía el vínculo del usuario actual. */
+  const { data: legacyGuardianLinks } = visibleLinks.length === 0
+    ? await supabase.rpc('get_student_guardian_links', {
     p_student_ids: [studentId],
-  });
+      })
+    : { data: [] };
 
   const attendanceByBlock = new Map((attendanceBlocks ?? []).map((item) => [item.schedule_block_id, item]));
-  const links = (guardianLinks ?? []) as StudentGuardianLink[];
+  const links = visibleLinks.length > 0
+    ? visibleLinks.map((link) => ({
+        student_id: link.student_id,
+        student_name: link.student_name,
+        institution_name: link.institution_name,
+        guardian_profile_id: link.person_profile_id,
+        guardian_name: link.person_name,
+        guardian_email: null,
+        relation_type: link.relation_type,
+        linked_at: link.valid_from ?? new Date().toISOString(),
+      }))
+    : (legacyGuardianLinks ?? []) as StudentGuardianLink[];
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -113,7 +141,9 @@ export default async function StudentDetailPage({
         ) : null}
 
         <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="space-y-6">
+          <div className="space-y-6 lg:contents">
+            <StudentConfigurationForm student={student} />
+            <div className="hidden">
             <form action={updateStudentAction} className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-xl font-semibold text-slate-900">Configuración del estudiante</h2>
               <input type="hidden" name="student_id" value={student.id} />
@@ -136,8 +166,9 @@ export default async function StudentDetailPage({
                 Guardar configuración
               </PendingSubmitButton>
             </form>
+            </div>
 
-            <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:col-start-2 lg:row-start-2">
               <div>
                 <h2 className="text-xl font-semibold text-slate-900">Vinculos del estudiante</h2>
                 <p className="text-sm text-slate-500">
@@ -162,7 +193,20 @@ export default async function StudentDetailPage({
             </section>
           </div>
 
-          <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:col-start-2 lg:row-start-1">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">Datos actuales del estudiante</h2>
+              <p className="text-sm text-slate-500">Información registrada para este estudiante.</p>
+            </div>
+            <dl className="divide-y divide-slate-100 rounded-2xl border border-slate-200">
+              <div className="flex items-center justify-between gap-4 p-4"><dt className="text-sm text-slate-500">RUT</dt><dd className="text-sm font-semibold text-slate-900">{student.rut ?? 'No registrado'}</dd></div>
+              <div className="flex items-center justify-between gap-4 p-4"><dt className="text-sm text-slate-500">Teléfono</dt><dd className="text-sm font-semibold text-slate-900">{student.phone ?? 'No registrado'}</dd></div>
+              <div className="flex items-center justify-between gap-4 p-4"><dt className="text-sm text-slate-500">Salida autónoma</dt><dd className="text-sm font-semibold text-slate-900">{student.can_leave_alone ? 'Permitida' : 'No permitida'}</dd></div>
+              <div className="flex items-center justify-between gap-4 p-4"><dt className="text-sm text-slate-500">Estado</dt><dd className="text-sm font-semibold text-slate-900">{student.is_in_institution ? 'En la institución' : 'Fuera de la institución'}</dd></div>
+            </dl>
+          </section>
+
+          <section className="hidden">
             <div>
               <h2 className="text-xl font-semibold text-slate-900">School timetable del estudiante</h2>
               <p className="text-sm text-slate-500">Verde: asistencia · Rojo: inasistencia · Amarillo: tardanza.</p>

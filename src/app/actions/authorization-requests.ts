@@ -172,50 +172,10 @@ export async function createStudentExitAuthorizationRequest(
     return { success: true, messageCode: 'AUTH_REQUEST_PENDING', requestId: activeGuardianPickup.id as string };
   }
 
-  const { data: guardianLink } = await supabase
-    .from('guardian_students')
-    .select('guardian_profile_id, relation_type')
-    .eq('student_id', currentStudent.studentId)
-    .order('relation_type', { ascending: true })
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  if (!guardianLink?.guardian_profile_id) {
-    return { success: false, messageCode: 'AUTH_REQUEST_NO_GUARDIAN' };
-  }
-
-  const { data: existingPending } = await supabase
-    .from('authorization_requests')
-    .select('id')
-    .eq('student_id', currentStudent.studentId)
-    .eq('guardian_profile_id', guardianLink.guardian_profile_id)
-    .eq('status', 'PENDING')
-    .gt('expires_at', new Date().toISOString())
-    .maybeSingle();
-
-  if (existingPending?.id) {
-    return {
-      success: true,
-      messageCode: 'AUTH_REQUEST_PENDING',
-      requestId: existingPending.id as string,
-    };
-  }
-
-  const { data: request, error } = await supabase
-    .from('authorization_requests')
-    .insert({
-      institution_id: currentStudent.institutionId,
-      student_id: currentStudent.studentId,
-      guardian_profile_id: guardianLink.guardian_profile_id,
-      requested_by_profile_id: user.id,
-      request_type: 'EXIT_ALONE',
-      status: 'PENDING',
-      reason: reason?.trim() || null,
-      expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-    })
-    .select('id')
-    .single();
+  const { data, error } = await supabase.rpc('create_student_pickup_request', {
+    p_reason: reason?.trim() || null,
+  });
+  const request = Array.isArray(data) ? data[0] : data;
 
   if (error || !request) {
     return { success: false, messageCode: 'AUTH_REQUEST_FAILED' };
@@ -224,9 +184,9 @@ export async function createStudentExitAuthorizationRequest(
   revalidatePath('/dashboard');
 
   return {
-    success: true,
-    messageCode: 'AUTH_REQUEST_CREATED',
-    requestId: request.id as string,
+    success: request.message_code === 'AUTH_REQUEST_CREATED' || request.message_code === 'AUTH_REQUEST_PENDING',
+    messageCode: request.message_code as AuthorizationMessageCode,
+    requestId: request.request_id as string | undefined,
   };
 }
 
@@ -291,7 +251,7 @@ export async function listGuardianPendingAuthorizationRequests(): Promise<
   GuardianPendingAuthorizationRequest[]
 > {
   const { user, profile } = await requireUser();
-  if (profile?.role !== 'APODERADO') return [];
+  if (!['APODERADO', 'RETIRADOR_AUTORIZADO'].includes(profile?.role ?? '')) return [];
 
   const supabase = await createClient();
   const { data } = await supabase
@@ -330,16 +290,22 @@ export async function respondToAuthorizationRequest(
   note?: string,
 ): Promise<ActionResult> {
   const { user, profile } = await requireUser();
-  if (profile?.role !== 'APODERADO') {
+  if (!['APODERADO', 'RETIRADOR_AUTORIZADO'].includes(profile?.role ?? '')) {
     return { success: false, messageCode: 'AUTH_REQUEST_FORBIDDEN' };
   }
 
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc('respond_to_authorization_request', {
-    p_request_id: requestId,
-    p_decision: decision,
-    p_note: note?.trim() || null,
-  });
+  const { data, error } = decision === 'APPROVED'
+    ? await supabase.rpc('claim_student_pickup_authorization', {
+        p_request_id: requestId,
+        p_decision: decision,
+        p_note: note?.trim() || null,
+      })
+    : await supabase.rpc('claim_student_pickup_authorization', {
+        p_request_id: requestId,
+        p_decision: decision,
+        p_note: note?.trim() || null,
+      });
   const rpcResult = (Array.isArray(data) ? data[0] : data) as AuthorizationResponseRpcRow | null;
 
   if (error || !rpcResult) {

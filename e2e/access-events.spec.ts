@@ -16,39 +16,87 @@ async function readVisiblePickupPin(page: Page, label: string) {
 test.describe('Ingreso, salida y salida autónoma', () => {
   test.beforeEach(async () => resetE2EState());
 
+  test('PF-SAL-QR-002 — Un estudiante sin salida autónoma solo genera QR cuando está fuera', async ({ page }) => {
+    await setStudentState('inside', { inside: false, canLeaveAlone: false });
+    await login(page, 'ESTUDIANTE');
+    await page.goto('/authentications');
+
+    const qrButton = page.getByRole('button', { name: 'Generar QR', exact: true });
+    await expect(qrButton).toBeEnabled();
+
+    await setStudentState('inside', { inside: true, canLeaveAlone: false });
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'Generar QR', exact: true })).toBeDisabled();
+    await expect(page.getByText(/No se puede generar un QR de salida mientras el estudiante/)).toBeVisible();
+  });
+
   test('PF-ING-001A — Registrar manualmente el ingreso de un estudiante', async ({ page, captureEvidence }) => {
     await login(page, 'PORTERIA');
     await page.goto('/guard');
+    await captureEvidence('Paso 1: Porteria accede al registro manual de ingreso y salida');
     await selectStudentInGuard(page, 'Estudiante E2E Fuera');
     await expect(page.getByLabel(/^Evento/)).toHaveValue('INGRESO');
+    await expect(page.locator('#guard-course-filter')).toHaveValue(/Curso/);
     const manualForm = page.getByRole('heading', { name: 'Registro manual de ingreso y salida' }).locator('xpath=ancestor::form[1]');
-    await captureEvidence('Antes: estudiante fuera seleccionado y evento de ingreso disponible', manualForm);
+    await captureEvidence('Paso 2: estudiante fuera seleccionado, curso autocompletado y evento Ingreso disponible', manualForm);
     await fillManualAccessForm(page);
-    await captureEvidence('Paso 2: formulario de ingreso manual completo antes de registrar', manualForm);
+    await captureEvidence('Paso 3: formulario de ingreso manual completo antes de registrar', manualForm);
     await page.getByRole('button', { name: 'Registrar evento' }).click();
     await expect(page.getByText('Evento registrado')).toBeVisible();
-    await captureEvidence('Después: toast confirma el ingreso correcto', undefined, { preserveToast: true });
+    await captureEvidence('Paso 4: el ingreso manual fue registrado correctamente', undefined, { preserveToast: true });
     const recentEvents = page.getByRole('heading', { name: 'Eventos recientes' }).locator('xpath=ancestor::section[1]');
     const recentEvent = recentEvents.locator('article').filter({ hasText: 'Estudiante E2E Fuera' }).first();
     await expect(recentEvent).toBeVisible();
     await expect(recentEvent.getByText('Ingreso', { exact: true })).toBeVisible();
     await expect(recentEvent.getByText('Aprobado', { exact: true })).toBeVisible();
-    await captureEvidence('Después: sección completa de trazabilidad muestra el ingreso aprobado', recentEvents);
+    await captureEvidence('Paso 5: trazabilidad muestra el evento como Ingreso aprobado', recentEvents);
   });
 
-  test('PF-ING-001B — Explicar la política, resumir con viñetas y destacar la observación faltante', async ({ page, captureEvidence }) => {
+  test('PF-ING-001B — Validar políticas y observación obligatoria', async ({ page, captureEvidence }) => {
+    await setStudentState('inside', { inside: true, canLeaveAlone: true });
+    await setStudentState('outside', { inside: false, canLeaveAlone: true });
     await setExitPolicy(true, true);
     await login(page, 'PORTERIA');
     await page.goto('/guard');
     await expect(page.getByRole('heading', { name: 'Registro manual de ingreso y salida' })).toBeVisible();
-    await selectStudentInGuard(page, 'Estudiante E2E Fuera');
+
     const manualForm = page.getByRole('heading', { name: 'Registro manual de ingreso y salida' }).locator('xpath=ancestor::form[1]');
-    await captureEvidence('Vista 1: estudiante y evento seleccionados; campos obligatorios aún incompletos', manualForm);
+
+    // 1. Estudiante dentro que puede salir solo: política autónoma.
+    await selectStudentInGuard(page, 'Estudiante E2E Dentro');
+    await fillManualAccessForm(page, { exitKind: 'SOLO' });
+    let policy = page.getByText('Política aplicada', { exact: true }).locator('..');
+    await expect(policy).toContainText('Salida: QR obligatorio para salida autónoma');
+    await captureEvidence('Escenario 1: estudiante dentro autorizado para salir solo', policy);
+
+    // 2. Estudiante dentro que no puede salir solo: política de PIN dual.
+    await setStudentState('inside', { canLeaveAlone: false });
+    await page.reload();
+    await selectStudentInGuard(page, 'Estudiante E2E Dentro');
+    await fillManualAccessForm(page, { exitKind: 'REGULAR' });
+    policy = page.getByText('Política aplicada', { exact: true }).locator('..');
+    await expect(policy).toContainText('Salida: PIN dual obligatorio y excluyente');
+    await captureEvidence('Escenario 2: estudiante dentro sin permiso de salida autónoma', policy);
+
+    // 3. Estudiante fuera que puede salir solo: la política contextual se conserva.
+    await setStudentState('outside', { canLeaveAlone: true });
+    await page.reload();
+    await selectStudentInGuard(page, 'Estudiante E2E Fuera');
+    await fillManualAccessForm(page);
+    policy = page.getByText('Política aplicada', { exact: true }).locator('..');
+    await expect(policy).toContainText('Salida: QR obligatorio para salida autónoma');
+    await captureEvidence('Escenario 3: estudiante fuera autorizado para salir solo', policy);
+
+    // 4. Estudiante fuera que no puede salir solo: política dual y observación obligatoria.
+    await setStudentState('outside', { canLeaveAlone: false });
+    await page.reload();
+    await selectStudentInGuard(page, 'Estudiante E2E Fuera');
+    await captureEvidence('Escenario 4: estudiante fuera sin permiso de salida autónoma', manualForm);
     await page.getByLabel(/Método de validación/).selectOption('MANUAL');
     await expect(page.getByLabel('Tipo de contingencia')).toHaveValue('CONTINGENCIA_SIN_DISPOSITIVO');
     await page.getByLabel(/Motivo de contingencia/).selectOption('OTRO');
     await page.getByLabel(/Resultado/).selectOption('APROBADO');
-    await captureEvidence('Vista 2: contingencia, motivo y resultado completos; falta la descripción', manualForm);
+    await captureEvidence('Escenario 4: contingencia completa; falta la descripción', manualForm);
     await page.getByLabel('Descripción del evento').fill('Ingreso manual documentado');
 
     const summary = page.getByText('Resumen de selección', { exact: true }).locator('..');
@@ -56,11 +104,11 @@ test.describe('Ingreso, salida y salida autónoma', () => {
     await expect(summary).toContainText('Se APRUEBA ENTRADA para Estudiante E2E Fuera mediante REGISTRO MANUAL.');
     await expect(summary).toContainText('Contingencia: Dispositivo.');
 
-    const policy = page.getByText('Política aplicada', { exact: true }).locator('..');
+    policy = page.getByText('Política aplicada', { exact: true }).locator('..');
     await expect(policy.locator('ul > li')).toHaveCount(2);
     await expect(policy).toContainText('Ingreso: Autónomo; registro manual permitido.');
     await expect(policy).toContainText('Salida: PIN dual obligatorio y excluyente');
-    await captureEvidence('Vista 3: formulario completo con resumen y política en viñetas', manualForm);
+    await captureEvidence('Escenario 4: resumen y política en viñetas', manualForm);
 
     await page.getByLabel('Descripción del evento').fill('');
     await page.getByRole('button', { name: 'Registrar evento' }).click();
@@ -68,7 +116,7 @@ test.describe('Ingreso, salida y salida autónoma', () => {
       .toContainText('Debes registrar una observación para la contingencia.');
     await expect(page.getByLabel('Descripción del evento')).toHaveAttribute('aria-invalid', 'true');
     await expect(page.getByText('Describe la contingencia antes de registrar el evento.')).toBeVisible();
-    await captureEvidence('Vista 4: observación faltante destacada junto al resumen de errores', manualForm);
+    await captureEvidence('Escenario 4: observación faltante destacada junto al resumen de errores', manualForm);
   });
 
   test('PF-ING-003 — Rechazar ingreso de estudiante que ya está dentro', async ({ page, captureEvidence }) => {
@@ -137,8 +185,14 @@ test.describe('Ingreso, salida y salida autónoma', () => {
     await page.goto('/guard');
     const manualForm = page.getByRole('heading', { name: 'Registro manual de ingreso y salida' }).locator('xpath=ancestor::form[1]');
     await selectStudentInGuard(page, 'Estudiante E2E Dentro');
-    await captureEvidence('Paso 1: estudiante que no puede salir solo seleccionado para documentar la excepción', manualForm);
+    await expect(page.getByLabel(/^Evento/)).toHaveValue('SALIDA');
+    await expect(page.locator('#guard-course-filter')).toHaveValue(/Curso/);
+    await captureEvidence('Paso 1: estudiante dentro seleccionado, curso autocompletado y evento Salida', manualForm);
     await fillManualAccessForm(page, { exitKind: 'EXCEPCIONAL' });
+    await expect(page.getByLabel(/Tipo salida/)).toHaveValue('EXCEPCIONAL');
+    await expect(page.getByLabel(/Método de validación/)).toHaveValue('MANUAL');
+    await expect(page.getByLabel(/Motivo de contingencia/)).toHaveValue('SIN_DISPOSITIVO');
+    await expect(page.getByLabel(/Descripción del evento/)).toHaveValue('Contingencia controlada para prueba E2E');
 
     const policy = page.getByText('Política aplicada', { exact: true }).locator('..');
     await expect(policy).toContainText('Excepcional: omite QR/PIN y aprobación; observación obligatoria.');
@@ -151,6 +205,7 @@ test.describe('Ingreso, salida y salida autónoma', () => {
     const recentEvent = recentEvents.locator('article').filter({ hasText: 'Estudiante E2E Dentro' }).first();
     await expect(recentEvent.getByText('Excepcional', { exact: true })).toBeVisible();
     await expect(recentEvent.getByText('Aprobado', { exact: true })).toBeVisible();
+    await expect(recentEvent).toContainText('Contingencia controlada para prueba E2E');
     await captureEvidence('Paso 4: sección completa de trazabilidad registra la salida excepcional aprobada', recentEvents);
   });
 
@@ -195,7 +250,7 @@ test.describe('Ingreso, salida y salida autónoma', () => {
     await captureEvidence('Paso 6: sección completa de trazabilidad registra la salida por contingencia aprobada', recentTraceability);
   });
 
-  test('PF-SAL-004 — Confirmar una salida regular mediante QR', async ({ page, captureEvidence }) => {
+  test('PF-SAL-004 — Confirmar una salida autónoma a estudiante que puede salir solo mediante QR', async ({ page, captureEvidence }) => {
     await setExitPolicy(true, true);
     await setStudentState('inside', { inside: true, canLeaveAlone: true });
     await login(page, 'ESTUDIANTE');
@@ -259,8 +314,11 @@ test.describe('Ingreso, salida y salida autónoma', () => {
     await captureEvidence('Estudiante sin permiso: la salida directa no está disponible', studentStatus);
 
     await studentStatus.getByRole('button', { name: 'Solicitar autorización de salida' }).click();
-    await expect(page.getByText('Solicitud enviada al Apoderado Primario.')).toBeVisible();
+    await expect(page.getByText('Solicitud enviada a tus apoderados vinculados.')).toBeVisible();
     await expect(studentStatus.getByRole('button', { name: 'Solicitud en curso' })).toBeDisabled();
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'Solicitud en curso' })).toBeDisabled();
+    await expect(page.getByText(/Tus apoderados ya fueron notificados/)).toBeVisible();
     await captureEvidence('Estudiante: solicitud enviada y salida en espera de respuesta', studentStatus);
 
     await page.context().clearCookies();
@@ -308,7 +366,7 @@ test.describe('Ingreso, salida y salida autónoma', () => {
     await expect(studentStatus.getByText('Dentro de la institución')).toBeVisible();
     await expect(studentStatus.getByRole('button', { name: 'Registrar salida' })).toHaveCount(0);
     await studentStatus.getByRole('button', { name: 'Solicitar autorización de salida' }).click();
-    await expect(page.getByText('Solicitud enviada al Apoderado Primario.')).toBeVisible();
+    await expect(page.getByText('Solicitud enviada a tus apoderados vinculados.')).toBeVisible();
     await expect(studentStatus.getByRole('button', { name: 'Solicitud en curso' })).toBeDisabled();
     await captureEvidence('Estudiante: solicitud enviada y retiro pendiente de aprobación', studentStatus);
 
@@ -344,14 +402,16 @@ test.describe('Ingreso, salida y salida autónoma', () => {
     await page.context().clearCookies();
     await login(page, 'PORTERIA');
     await page.goto('/guard');
-    let pickupAtGate = page.locator('article').filter({ hasText: 'Estudiante E2E Dentro' }).first();
+    let pickupAtGate = page.locator('details[data-accordion]').filter({ hasText: 'Estudiante E2E Dentro' }).first();
+    await expect(pickupAtGate).not.toHaveAttribute('open', '');
+    await pickupAtGate.locator('summary').first().click();
     await expect(pickupAtGate.getByLabel('PIN de apoderado primario')).toBeVisible();
     await captureEvidence('Portería: retiro pendiente de validar ambas identidades', pickupAtGate);
 
     await pickupAtGate.getByLabel('PIN de apoderado primario').fill(guardianPin);
     await pickupAtGate.getByLabel('PIN de apoderado primario').locator('..').getByRole('button', { name: 'Validar PIN' }).click();
     await expect(page.getByText('PIN validado correctamente.')).toBeVisible();
-    pickupAtGate = page.locator('article').filter({ hasText: 'Estudiante E2E Dentro' }).first();
+    pickupAtGate = page.locator('details[data-accordion]').filter({ hasText: 'Estudiante E2E Dentro' }).first();
     await captureEvidence('Portería: identidad del Apoderado Primario validada presencialmente', pickupAtGate);
 
     await pickupAtGate.getByLabel('PIN de estudiante').fill(studentPin);

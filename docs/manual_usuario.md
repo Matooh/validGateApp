@@ -98,7 +98,7 @@ El Apoderado Primario o el administrador puede revocar una autorización tempora
 El Apoderado Primario o el administrador puede autorizar temporalmente a otra persona para retirar a un estudiante.
 
 1. Abra **Vínculos**.
-2. En **Autorizar Apoderado Secundario**, seleccione al estudiante.
+2. En **Vinculación Apoderado Secundario-Estudiante**, seleccione al estudiante.
 3. Complete nombres, apellidos, correo y RUT de la persona autorizada.
 4. Defina la fecha y hora de inicio y término de la autorización.
 5. Confirme que la persona está autorizada para retirar al estudiante durante ese período.
@@ -243,4 +243,3 @@ Tenga presente lo siguiente:
 **No puedo registrar una salida manual.** La institución puede exigir QR o PIN. Si está permitido usar una contingencia, seleccione el motivo y escriba la observación solicitada.
 
 **No puedo iniciar sesión.** Revise el correo y la contraseña. Si el problema continúa, solicite apoyo al administrador de la institución.
-

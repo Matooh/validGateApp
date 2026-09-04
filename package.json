@@ -1,6 +1,6 @@
 {
   "name": "validgate-mvp",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -10,6 +10,8 @@
     "demo": "bash scripts/validgate-demo.sh",
     "demo:check": "bash scripts/validgate-demo.sh --check-only",
     "test:demo": "playwright test --config=playwright.demo.config.ts",
+    "test:unit": "vitest run",
+    "test": "npm run test:unit",
     "test:e2e": "playwright test",
     "test:e2e:list": "playwright test --list",
     "test:e2e:headed": "playwright test --headed",
@@ -24,6 +26,7 @@
     "html5-qrcode": "^2.3.8",
     "jose": "^6.2.3",
     "next": "16.2.6",
+    "pptxgenjs": "^4.0.1",
     "qrcode": "^1.5.4",
     "react": "latest",
     "react-dom": "latest",
@@ -44,7 +47,8 @@
     "eslint": "latest",
     "eslint-config-next": "latest",
     "tailwindcss": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
+    "vitest": "^4.1.11"
   },
   "overrides": {
     "postcss": "^8.5.10"

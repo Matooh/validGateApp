@@ -832,22 +832,22 @@ Scenario: PF-APO-SEC-004 Rechazar una solicitud con autorización secundaria no 
     And al actualizar la vista el estudiante deja de estar disponible
 ```
 
-#### PF-APO-SEC-005 — Revocar la autorización secundaria y cancelar el retiro inmediatamente
+#### PF-APO-SEC-005 — Revocar la autorización del apoderado secundario evita el retiro
 
 - Requerimiento relacionado: RF04
 - Objetivo específico relacionado: OE2, OE3, OE4
 - Rol principal: Apoderado Primario
-- Tipo de prueba: Revocación
+- Tipo de prueba: Revocación y restricción de acceso
 - Prioridad: Alta
 - Estado de implementación observado: Implementado y automatizado
 
 ```gherkin
-Scenario: PF-APO-SEC-005 Revocar la autorización secundaria y cancelar el retiro inmediatamente
-    Given existe un retiro activo aceptado por el estudiante y con PIN generados
-    When el Apoderado Primario revoca la autorización temporal
-    Then el vínculo aparece como "Revocado"
-    And la solicitud cambia a "Cancelado por revocación de autorización"
-    And los PIN dejan de ser utilizables inmediatamente
+Scenario: PF-APO-SEC-005 Revocar la autorización del apoderado secundario evita el retiro
+    Given el Apoderado Secundario tiene una autorización vigente y puede iniciar un retiro
+    When el Apoderado Primario revoca la autorización antes de iniciar el retiro
+    Then la autorización deja de aparecer entre los vínculos activos
+    And el Apoderado Secundario deja de ver estudiantes vinculados
+    And no puede iniciar un retiro ni se crea una solicitud
 ```
 
 #### PF-APO-SEC-007 — Impedir retirar un estudiante distinto del autorizado
@@ -1536,7 +1536,7 @@ Convención de identificación: cuando un escenario conceptual se ejecuta para v
 | PF-APO-SEC-002 | Autorizar un Apoderado Secundario registrado previamente | RF04 | OE2, OE3, OE4 | Apoderado Primario | Flujo alternativo | Automatizado |
 | PF-APO-SEC-003 | Completar un retiro como Apoderado Secundario usando PIN dual | RF09 | OE2, OE3, OE4 | Apoderado Secundario, Estudiante y Portería | Flujo exitoso E2E | Automatizado; requiere migración 027 |
 | PF-APO-SEC-004 | Rechazar una solicitud con autorización secundaria no vigente | RF09 | OE2, OE3, OE4 | Apoderado Secundario | Restricción de permisos | Automatizado |
-| PF-APO-SEC-005 | Revocar la autorización secundaria y cancelar el retiro inmediatamente | RF04 | OE2, OE3, OE4 | Apoderado Primario | Revocación | Automatizado |
+| PF-APO-SEC-005 | Revocar la autorización del apoderado secundario evita el retiro | RF04 | OE2, OE3, OE4 | Apoderado Primario y Apoderado Secundario | Revocación y restricción | Automatizado |
 | PF-APO-SEC-007 | Impedir retirar un estudiante distinto del autorizado | RF09 | OE2, OE3, OE4 | Apoderado Secundario | Restricción de alcance | Automatizado |
 | PF-REG-001 | Aplicar una política institucional a un evento compatible | RF10 | OE3, OE4 | Portería | Flujo exitoso | Pendiente de automatización |
 | PF-REG-002 | Rechazar un evento contrario a una política excluyente | RF10 | OE3, OE4 | Portería | Validación | Pendiente de automatización |

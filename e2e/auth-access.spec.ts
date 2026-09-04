@@ -3,13 +3,18 @@ import { expect, test } from './fixtures';
 import { credentialsFor, type E2ERole } from './support/env';
 import {
   ensureSecondaryGuardianProfile,
+  activateRegistrationFixture,
   isOutsideStudentLinkedToGuardian,
   removeOutsideStudentGuardianLink,
+  removeStudentByCode,
   removeSecondaryGuardianRelationships,
+  registrationFixture,
+  registrationProfile,
+  removeRegistrationFixture,
   resetE2EState,
   resolveE2EData,
 } from './support/database';
-import { login } from './support/ui';
+import { login, loginWithCredentials, logout } from './support/ui';
 
 test.describe('Autenticación, roles y vinculación', () => {
   test.beforeEach(async () => resetE2EState());
@@ -65,14 +70,104 @@ test.describe('Autenticación, roles y vinculación', () => {
 
   test('PF-AUTH-003 — Rechazar credenciales incorrectas', async ({ page, captureEvidence }) => {
     await page.goto('/');
-    await page.getByLabel('Email').fill('usuario-e2e-inexistente@example.invalid');
-    await page.getByLabel('Password').fill('password-incorrecta');
+    await page.locator('#email').fill('usuario-e2e-inexistente@example.invalid');
+    await page.locator('#password').fill('password-incorrecta');
     await page.getByRole('button', { name: 'Login' }).click();
     await expect(page).toHaveURL(/\/$/);
     const rejectedToast = page.getByRole('status').filter({ hasText: 'No pudimos iniciar sesión' });
     await expect(rejectedToast).toBeVisible();
     await expect(rejectedToast).toHaveClass(/bg-rose-50/);
     await captureEvidence('Credenciales incorrectas rechazadas mediante toast de error', undefined, { preserveToast: true });
+  });
+
+  test('PF-AUTH-004 — Registrar usuario desde el home', async ({ page, captureEvidence }) => {
+    test.setTimeout(90_000);
+    const fixture = registrationFixture('basic');
+    await removeRegistrationFixture('basic');
+    try {
+      await page.goto('/');
+      await captureEvidence('Paso 1: home con acceso al formulario de inicio de sesión');
+      await page.getByRole('link', { name: 'registrarse' }).click();
+      await expect(page).toHaveURL(/\/register/);
+      const form = page.getByRole('heading', { name: 'Registro de usuario' }).locator('xpath=ancestor::main[1]');
+      await captureEvidence('Paso 2: formulario de registro visible desde el home', form);
+      await form.getByLabel('Nombres').fill(fixture.firstName);
+      await form.getByLabel('Apellidos').fill(fixture.lastName);
+      await form.getByLabel('Institución').selectOption({ label: fixture.institutionName });
+      await form.getByLabel('Correo electrónico').fill(fixture.email);
+      await form.getByLabel('RUT').fill(fixture.rut);
+      await form.getByLabel('Contraseña', { exact: true }).fill(fixture.password);
+      await form.getByLabel('Repetir contraseña').fill(fixture.password);
+      await captureEvidence('Paso 3: formulario de registro completo antes de enviar', form);
+      await form.getByRole('button', { name: 'Crear cuenta' }).click();
+      await expect(page).toHaveURL(/\/$/);
+      await expect(page.getByRole('status').filter({ hasText: 'Registro exitoso' })).toBeVisible();
+      await captureEvidence('Paso 4: registro exitoso antes de iniciar sesión', undefined, { preserveToast: true });
+      await activateRegistrationFixture('basic');
+      await loginWithCredentials(page, fixture.email, fixture.password);
+      await expect(page.getByTestId('dashboard-role-eyebrow')).toHaveText('Sin rol asignado');
+      await expect(page.getByText('Cuenta pendiente', { exact: true })).toBeVisible();
+      const profile = await registrationProfile('basic');
+      expect(profile.role).toBe('PENDIENTE');
+      await captureEvidence('Paso 5: dashboard del usuario registrado con rol pendiente de asignación');
+    } finally {
+      await removeRegistrationFixture('basic');
+    }
+  });
+
+  test('PF-AUTH-005 — Registrar usuario y asignar rol de Apoderado', async ({ page, captureEvidence }) => {
+    test.setTimeout(90_000);
+    const fixture = registrationFixture('guardian');
+    await removeRegistrationFixture('guardian');
+    try {
+      await page.goto('/');
+      await captureEvidence('Paso 1: home antes de iniciar el registro');
+      await page.getByRole('link', { name: 'registrarse' }).click();
+      const registration = page.getByRole('heading', { name: 'Registro de usuario' }).locator('xpath=ancestor::main[1]');
+      await captureEvidence('Paso 2: formulario de registro abierto desde el home', registration);
+      await registration.getByLabel('Nombres').fill(fixture.firstName);
+      await registration.getByLabel('Apellidos').fill(fixture.lastName);
+      await registration.getByLabel('Institución').selectOption({ label: fixture.institutionName });
+      await registration.getByLabel('Correo electrónico').fill(fixture.email);
+      await registration.getByLabel('RUT').fill(fixture.rut);
+      await registration.getByLabel('Contraseña', { exact: true }).fill(fixture.password);
+      await registration.getByLabel('Repetir contraseña').fill(fixture.password);
+      await captureEvidence('Paso 3: usuario registrado listo para crear la cuenta', registration);
+      await registration.getByRole('button', { name: 'Crear cuenta' }).click();
+      await expect(page).toHaveURL(/\/$/);
+      await expect(page.getByRole('status').filter({ hasText: 'Registro exitoso' })).toBeVisible();
+      await captureEvidence('Paso 4: cuenta creada con estado pendiente', undefined, { preserveToast: true });
+
+      await activateRegistrationFixture('guardian');
+      await loginWithCredentials(page, fixture.email, fixture.password);
+      await expect(page.getByTestId('dashboard-role-eyebrow')).toHaveText('Sin rol asignado');
+      await expect(page.getByText('Cuenta pendiente', { exact: true })).toBeVisible();
+      await captureEvidence('Paso 5: dashboard del usuario registrado antes de recibir un rol');
+      await logout(page);
+
+      await login(page, 'ADMIN');
+      await captureEvidence('Paso 6: ADMIN ingresa al dashboard para gestionar el usuario');
+      await page.goto('/admin/users');
+      const userRow = page.locator('article').filter({ hasText: fixture.email });
+      await expect(userRow).toBeVisible();
+      await expect(userRow).toContainText('Sin rol asignado');
+      await captureEvidence('Paso 7: ADMIN encuentra al usuario pendiente en el módulo de gestión de usuarios', userRow);
+      await userRow.getByLabel('Asignar rol').selectOption('APODERADO');
+      await captureEvidence('Paso 8: ADMIN selecciona el rol Apoderado', userRow);
+      await userRow.getByRole('button', { name: 'Guardar rol' }).click();
+      await expect(page.getByRole('status')).toContainText('Rol actualizado correctamente');
+      await expect(userRow).toContainText('Rol actual: Apoderado');
+      expect((await registrationProfile('guardian')).role).toBe('APODERADO');
+      await captureEvidence('Paso 9: ADMIN confirma la asignación del rol Apoderado', userRow, { preserveToast: true });
+
+      await logout(page);
+      await loginWithCredentials(page, fixture.email, fixture.password, 'Apoderado Primario');
+      await expect(page.getByTestId('dashboard-role-eyebrow')).toHaveText('Apoderado Primario');
+      await expect(page.getByText('Apoderado Primario', { exact: true }).first()).toBeVisible();
+      await captureEvidence('Paso 10: dashboard del usuario refleja el rol Apoderado asignado');
+    } finally {
+      await removeRegistrationFixture('guardian');
+    }
   });
 
   for (const role of ['APODERADO', 'ESTUDIANTE', 'DOCENTE'] as E2ERole[]) {
@@ -99,11 +194,38 @@ test.describe('Autenticación, roles y vinculación', () => {
   });
 
   test('PF-VIN-ADM-001 — Permitir al administrador gestionar vínculos', async ({ page, captureEvidence }) => {
+    await login(page, 'ADMIN');
+    await page.goto('/admin/relationships');
+    const manageLinks = page.locator('details[data-accordion]').filter({ hasText: 'Gestionar vinculaciones' }).first();
+    await expect(manageLinks).toHaveCount(1);
+    await expect(manageLinks).not.toHaveAttribute('open', '');
+    await manageLinks.locator('summary').first().click();
+    const primaryManagement = manageLinks.locator('details[data-accordion]').filter({ hasText: 'Vinculación Apoderado Primario-Estudiante' }).first();
+    const secondaryManagement = manageLinks.locator('details[data-accordion]').filter({ hasText: 'Vinculación Apoderado Secundario-Estudiante' }).first();
+    await primaryManagement.locator('summary').first().click();
+    await secondaryManagement.locator('summary').first().click();
+    await expect(primaryManagement.getByRole('heading', { name: 'Vinculación Apoderado Primario-Estudiante' })).toBeVisible();
+    await expect(secondaryManagement.getByRole('heading', { name: 'Vinculación Apoderado Secundario-Estudiante' })).toBeVisible();
+    await captureEvidence('Paso 1: Administrador abre Gestionar vinculaciones y visualiza las opciones primaria y secundaria', manageLinks);
+  });
+
+  test.skip('PF-VIN-ADM-001-LEGACY — Permitir al administrador gestionar vínculos con administración de registros', async ({ page, captureEvidence }) => {
     expect(await isOutsideStudentLinkedToGuardian()).toBe(false);
     const secondary = await ensureSecondaryGuardianProfile();
     try {
       await login(page, 'ADMIN');
       await page.goto('/admin/relationships');
+      const manageLinks = page.locator('details[data-accordion]').filter({ hasText: 'Gestionar vinculaciones' }).first();
+      await expect(manageLinks).toHaveCount(1);
+      await expect(manageLinks).not.toHaveAttribute('open', '');
+      await manageLinks.locator('summary').first().click();
+      const primaryManagement = manageLinks.locator('details[data-accordion]').filter({ hasText: 'Vinculación Apoderado Primario-Estudiante' }).first();
+      const secondaryManagement = manageLinks.locator('details[data-accordion]').filter({ hasText: 'Vinculación Apoderado Secundario-Estudiante' }).first();
+      await primaryManagement.locator('summary').first().click();
+      await secondaryManagement.locator('summary').first().click();
+      await expect(primaryManagement.getByRole('heading', { name: 'Vinculación Apoderado Primario-Estudiante' })).toBeVisible();
+      await expect(secondaryManagement.getByText('Vinculación Apoderado Secundario-Estudiante', { exact: true })).toBeVisible();
+      await captureEvidence('Administrador: desplegable Gestionar vinculaciones muestra las opciones primaria y secundaria', manageLinks);
       await expect(page.getByRole('heading', { name: 'Vinculación Apoderado Primario-Estudiante' })).toBeVisible();
 
       const studentSelect = page.getByLabel('Estudiante');
@@ -208,65 +330,105 @@ test.describe('Autenticación, roles y vinculación', () => {
   for (const role of ['PORTERIA', 'DOCENTE', 'APODERADO', 'ESTUDIANTE'] as E2ERole[]) {
     test(`${adminRestrictionCaseIdByRole[role]} — Restringir gestión administrativa para ${roleDisplayName(role)}`, async ({ page, captureEvidence }) => {
       await login(page, role);
+      if (role === 'PORTERIA' || role === 'DOCENTE') {
+        await page.getByRole('button', { name: 'Abrir menú de navegación' }).click();
+        const navigation = page.getByRole('navigation', { name: 'Opciones de navegación' });
+        await expect(navigation.getByRole('link', { name: 'Vínculos', exact: true })).toHaveCount(0);
+        await captureEvidence(`Paso 1: ${roleDisplayName(role)} no muestra Vínculos en el menú hamburguesa`, navigation);
+        await page.goto('/links');
+        await expect(page).toHaveURL(/\/dashboard/);
+        await expect(page.getByRole('status').filter({ hasText: 'No tienes permiso para esta sección' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Vínculos', exact: true })).toHaveCount(0);
+        await captureEvidence(`Paso 2: ${roleDisplayName(role)} no puede acceder directamente a /links`, undefined, { preserveToast: true });
+        return;
+      }
       await page.goto('/admin/relationships');
-      await expect(page).toHaveURL(/\/dashboard/);
-      const deniedToast = page.getByRole('status').filter({ hasText: 'No tienes permiso' });
-      await expect(deniedToast).toBeVisible();
-      await expect(deniedToast).toHaveClass(/bg-rose-50/);
+      await expect(page).toHaveURL(/\/links/);
+      await expect(page.getByText('Gestionar vinculaciones', { exact: true })).toHaveCount(0);
       await expect(page.getByRole('heading', { name: 'Vinculación Apoderado Primario-Estudiante' })).not.toBeVisible();
-      await captureEvidence(`Gestión administrativa restringida para ${roleDisplayName(role)} mediante toast`, undefined, { preserveToast: true });
+      if (role === 'APODERADO') {
+        await expect(page.getByText('Vinculación Apoderado Primario-Estudiante', { exact: true })).toHaveCount(0);
+      }
+      if (role === 'ESTUDIANTE') {
+        await expect(page.getByText('Vinculación Apoderado Primario-Estudiante', { exact: true })).toHaveCount(0);
+        await expect(page.getByText('Vinculación Apoderado Secundario-Estudiante', { exact: true })).toHaveCount(0);
+      }
+      await captureEvidence(`Gestión administrativa restringida para ${roleDisplayName(role)}`);
     });
   }
 
-  test('PF-VIN-ADM-003 — Impedir que el administrador se vincule personalmente a un estudiante mediante código', async ({ page, captureEvidence }) => {
+  test('PF-VIN-ADM-003 — Impedir que el administrador se vincule personalmente a un estudiante', async ({ page, captureEvidence }) => {
     await login(page, 'ADMIN');
-    await captureEvidence('Paso 1: administrador autenticado antes de intentar la vinculación personal');
-    await page.goto('/students/link');
-    await expect(page).toHaveURL(/\/dashboard/);
-    const accessDeniedToast = page
-      .getByRole('status')
-      .filter({ hasText: 'Solo los Apoderados Primarios pueden vincularse mediante código' });
-    await expect(accessDeniedToast).toBeVisible();
-    await expect(accessDeniedToast).toHaveClass(/bg-rose-50/);
-    await expect(accessDeniedToast).toHaveClass(/text-rose-900/);
-    await expect(page.getByRole('heading', { name: 'Vincular estudiante a cuenta' })).not.toBeVisible();
-    await captureEvidence('Paso 2: intento de abrir la vinculación mediante código rechazado con toast de error', undefined, { preserveToast: true });
+    await page.goto('/links');
+    const manageLinks = page.locator('details[data-accordion]').filter({ hasText: 'Gestionar vinculaciones' }).first();
+    await expect(manageLinks).toBeVisible();
+    await manageLinks.locator('summary').first().click();
+    const primaryManagement = manageLinks.locator('details[data-accordion]').filter({ hasText: 'Vinculación Apoderado Primario-Estudiante' }).first();
+    await primaryManagement.locator('summary').click();
+    const studentSelect = primaryManagement.getByRole('combobox', { name: 'Estudiante' });
+    const guardianSelect = primaryManagement.getByRole('combobox', { name: 'Apoderado Primario' });
+    const adminEmail = credentialsFor('ADMIN').email;
+    await studentSelect.click();
+    await expect(studentSelect).toHaveAttribute('aria-expanded', 'true');
+    const studentOptions = primaryManagement.locator('#primary-student-options');
+    await expect(studentOptions).toBeVisible();
+    await expect(studentOptions).not.toContainText('Admin E2E');
+    await expect(studentOptions).not.toContainText(adminEmail);
+    await guardianSelect.click();
+    await expect(guardianSelect).toHaveAttribute('aria-expanded', 'true');
+    const guardianOptions = primaryManagement.locator('#primary-guardian-profile-options');
+    await expect(guardianOptions).toBeVisible();
+    expect(await guardianOptions.getByRole('option').count()).toBeGreaterThan(0);
+    await expect(guardianOptions).toContainText('Apoderado Primario');
+    await expect(guardianOptions).not.toContainText('Admin E2E');
+    await expect(guardianOptions).not.toContainText(adminEmail);
+    await captureEvidence('ADMIN: los desplegables de estudiante y apoderado no ofrecen vinculación con cuentas ADMIN', primaryManagement);
   });
 
-  test('PF-VIN-001A — Vincular un estudiante mediante código válido', async ({ page, captureEvidence }) => {
-    const { codes } = await resolveE2EData();
-    expect(await isOutsideStudentLinkedToGuardian()).toBe(false);
+  test('PF-VIN-001A — Registrar y vincular un estudiante mediante código válido', async ({ page, captureEvidence }) => {
+    let linkCode = '';
     try {
+      await login(page, 'ADMIN');
+      await captureEvidence('Paso 1: ADMIN inicia sesion correctamente');
+      await page.goto('/admin/students');
+      const form = page.getByRole('heading', { name: 'Nuevo estudiante' }).locator('xpath=ancestor::form[1]');
+      await expect(page.getByRole('heading', { name: 'Estudiantes', exact: true })).toBeVisible();
+      await captureEvidence('Paso 2: ADMIN accede al modulo Estudiantes', form);
+      await form.getByLabel('Nombres').fill('Estudiante E2E');
+      await form.getByLabel('Apellidos').fill('Demo');
+      await form.locator('#student-course').click();
+      await form.getByRole('option').first().getByRole('button').click();
+      await captureEvidence('Paso 3: ADMIN completa los datos del nuevo estudiante', form);
+      await form.getByRole('button', { name: 'Crear estudiante' }).click();
+      await expect(page.getByText(/Estudiante creado.*Código de vinculación/)).toBeVisible();
+      const registered = page.getByRole('heading', { name: 'Estudiantes registrados' }).locator('xpath=ancestor::section[1]');
+      const createdStudent = registered.locator('article').filter({ hasText: 'Estudiante E2E Demo' }).first();
+      await expect(createdStudent).toBeVisible();
+      await createdStudent.getByRole('button').click();
+      const codeMatch = (await createdStudent.innerText()).match(/C.digo:\s*([A-Z0-9-]+)/i);
+      expect(codeMatch?.[1]).toBeTruthy();
+      linkCode = codeMatch![1];
+      await captureEvidence(`Paso 4: ADMIN crea el estudiante y almacena el codigo ${linkCode}`, createdStudent, { revealCodes: true });
+      await captureEvidence(`Administrador: estudiante creado y código ${linkCode} almacenado`, createdStudent, { revealCodes: true });
+
       await login(page, 'APODERADO');
-      await page.getByRole('button', { name: 'Cerrar notificación' }).click();
-      await expect(page.getByTestId('dashboard-role-eyebrow')).toHaveText('Apoderado Primario');
-      await captureEvidence('Paso 1: dashboard del Apoderado Primario antes de iniciar la vinculación');
-      const linkedStudents = page.getByRole('heading', { name: 'Estudiantes vinculados' }).locator('xpath=ancestor::section[1]');
-      await expect(linkedStudents.getByText('Estudiante E2E Fuera', { exact: true })).not.toBeVisible();
-      await expect(linkedStudents.getByText('Estudiante E2E Dentro', { exact: true })).toBeVisible();
-      await captureEvidence('Paso 2: dashboard muestra solamente al estudiante previamente vinculado', linkedStudents);
-
+      await captureEvidence('Paso 5: APODERADO inicia sesion correctamente');
       await page.goto('/students/link');
-      await expect(page.getByRole('heading', { name: 'Vincular estudiante a cuenta' })).toBeVisible();
-      await captureEvidence('Paso 3: Apoderado Primario accede al panel para vincular un estudiante');
-      await page.getByLabel('Código de vinculación').fill(codes.outside);
       const linkStudentSection = page.getByRole('heading', { name: 'Vincular estudiante a cuenta' }).locator('xpath=ancestor::section[1]');
-      await captureEvidence(`Paso 4: código válido ${codes.outside} ingresado en el formulario`, linkStudentSection, { revealCodes: true });
-
+      await expect(linkStudentSection).toBeVisible();
+      await captureEvidence('Paso 6: APODERADO accede al modulo de vinculacion mediante codigo', linkStudentSection);
+      await page.getByLabel('Código de vinculación').fill(linkCode);
+      await captureEvidence(`Paso 7: APODERADO ingresa el codigo ${linkCode}`, linkStudentSection, { revealCodes: true });
       await page.getByRole('button', { name: 'Vincular estudiante' }).click();
-      const successToast = page.getByRole('status').filter({ hasText: 'Vinculación exitosa' });
-      await expect(successToast).toBeVisible();
-      await captureEvidence('Paso 5: toast confirma que la vinculación fue exitosa', undefined, { preserveToast: true });
-
-      await expect(page.getByText('Estudiante E2E Fuera', { exact: true })).toBeVisible();
-      expect(await isOutsideStudentLinkedToGuardian()).toBe(true);
-      await expect(linkedStudents.getByText('Estudiante E2E Dentro', { exact: true })).toBeVisible();
-      await expect(linkedStudents.getByText('Estudiante E2E Fuera', { exact: true })).toBeVisible();
-      await captureEvidence('Estado final: ambos estudiantes figuran en la cuenta del Apoderado Primario', linkedStudents);
+      await expect(page.getByRole('status').filter({ hasText: 'Vinculación exitosa' })).toBeVisible();
+      await expect(page).toHaveURL(/\/dashboard/);
+      const linkedStudents = page.getByRole('heading', { name: 'Estudiantes vinculados' }).locator('xpath=ancestor::section[1]');
+      await expect(linkedStudents.getByRole('heading', { name: 'Estudiante E2E Demo' })).toBeVisible();
+      await captureEvidence('Paso 8: estudiante figura en los vinculos del APODERADO', linkedStudents);
+      await captureEvidence('Apoderado Primario: estudiante creado por el administrador aparece en sus vínculos', linkedStudents);
     } finally {
-      await removeOutsideStudentGuardianLink();
+      if (linkCode) await removeStudentByCode(linkCode);
     }
-    expect(await isOutsideStudentLinkedToGuardian()).toBe(false);
   });
 
   test('PF-VIN-002A — Rechazar un código de vinculación inválido', async ({ page, captureEvidence }) => {

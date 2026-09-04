@@ -137,6 +137,10 @@ export async function createStudentQrCredential(studentId?: number) {
     return { success: false, messageCode: 'QR_NOT_FOUND' as const };
   }
 
+  if (!student.can_leave_alone && student.is_in_institution) {
+    return { success: false, messageCode: 'QR_EXIT_NOT_ALLOWED_ALONE' as const };
+  }
+
   const authorized = await canCreateCredentialForStudent(student as StudentSnapshot, profile);
   if (!authorized) {
     return { success: false, messageCode: 'QR_FORBIDDEN' as const };

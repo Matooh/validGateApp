@@ -67,7 +67,7 @@ function ActorValidation({
           Validar PIN
         </PendingSubmitButton>
       </form>
-      {!request.pinOnly ? <details className="rounded-xl bg-slate-50 p-3">
+      {!request.pinOnly ? <details data-accordion className="rounded-xl bg-slate-50 p-3">
         <summary className="cursor-pointer text-sm font-medium text-sky-700">Validación manual controlada</summary>
         <form action={manuallyValidateGuardianPickupActorFromForm} className="mt-3 space-y-2">
           <input type="hidden" name="request_id" value={request.requestId} />
@@ -126,7 +126,8 @@ export function GuardianPickupQueue({ requests }: { requests: GuardianPickupRequ
           {operationalRequests.map((request) => {
             const readyForValidation = request.status !== 'PENDING_STUDENT_RESPONSE';
             return (
-              <article key={request.requestId} className="rounded-2xl border border-slate-200 p-4">
+              <details key={request.requestId} data-accordion className="rounded-2xl border border-slate-200 p-4">
+                <summary className="cursor-pointer list-none">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="font-semibold text-slate-900">{request.studentName}</p>
@@ -137,6 +138,8 @@ export function GuardianPickupQueue({ requests }: { requests: GuardianPickupRequ
                     {STATUS_LABELS[request.status] ?? request.status}
                   </span>
                 </div>
+                </summary>
+                <div className="mt-4">
 
                 {request.expiresAt ? (
                   <p className="mt-3 text-xs font-medium text-slate-500">PIN vigentes hasta {new Date(request.expiresAt).toLocaleTimeString('es-CL')}</p>
@@ -153,7 +156,7 @@ export function GuardianPickupQueue({ requests }: { requests: GuardianPickupRequ
 
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                   {readyForValidation ? (
-                    <details className="rounded-xl border border-rose-200 px-3 py-2">
+                    <details data-accordion className="rounded-xl border border-rose-200 px-3 py-2">
                       <summary className="cursor-pointer text-sm font-semibold text-rose-700">Rechazar en portería</summary>
                       <form action={rejectGuardianPickupAtGateFromForm} className="mt-3 w-full space-y-2 sm:w-80">
                         <input type="hidden" name="request_id" value={request.requestId} />
@@ -172,7 +175,8 @@ export function GuardianPickupQueue({ requests }: { requests: GuardianPickupRequ
                     </details>
                   ) : null}
                 </div>
-              </article>
+                </div>
+              </details>
             );
           })}
         </div>
@@ -181,7 +185,7 @@ export function GuardianPickupQueue({ requests }: { requests: GuardianPickupRequ
       )}
 
       {recentClosedRequests.length ? (
-        <details className="rounded-2xl border border-slate-200 p-4">
+        <details data-accordion className="rounded-2xl border border-slate-200 p-4">
           <summary className="cursor-pointer text-sm font-semibold text-slate-700">Retiros finalizados recientemente</summary>
           <div className="mt-3 divide-y divide-slate-100">
             {recentClosedRequests.map((request) => (

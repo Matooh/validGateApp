@@ -50,6 +50,12 @@ export async function saveGuardianRelationshipAction(formData: FormData) {
   }
 
   const result = data as RelationshipResult | null;
+  if (result?.status === 'promoted') {
+    revalidatePath('/admin/relationships');
+    revalidatePath('/links');
+    revalidatePath('/dashboard');
+    redirectWithMessage('success', 'La vinculacion secundaria fue promovida a Apoderado Primario.');
+  }
   if (result?.status !== 'linked') {
     redirectWithMessage('error', 'La relación no cumple las reglas de la institución.');
   }

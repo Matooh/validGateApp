@@ -16,10 +16,12 @@ export type AppPermission =
   | 'view_courses'
   | 'view_attendance'
   | 'manage_users'
+  | 'manage_students'
   | 'manage_roles'
   | 'manage_feature_flags';
 
 const ROLE_PERMISSIONS: Record<AppRole, AppPermission[]> = {
+  PENDIENTE: [],
   ADMIN: [
     'view_dashboard',
     'view_guard_module',
@@ -35,6 +37,7 @@ const ROLE_PERMISSIONS: Record<AppRole, AppPermission[]> = {
     'view_courses',
     'view_attendance',
     'manage_users',
+    'manage_students',
     'manage_roles',
     'manage_feature_flags',
   ],

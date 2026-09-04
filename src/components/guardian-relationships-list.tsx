@@ -36,7 +36,7 @@ function countLabel(count: number, singular: string, plural: string) {
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
-function RelationshipItem({ relationship }: { relationship: GuardianRelationship }) {
+function RelationshipItem({ relationship, readOnly = false }: { relationship: GuardianRelationship; readOnly?: boolean }) {
   const [isManaging, setIsManaging] = useState(false);
   const [draftType, setDraftType] = useState(relationship.relation_type);
   const hasChanges = draftType !== relationship.relation_type;
@@ -62,14 +62,14 @@ function RelationshipItem({ relationship }: { relationship: GuardianRelationship
           <p className="break-all text-sm text-slate-500">{relationship.guardian_email}</p>
           {!isManaging ? <p className="mt-2 text-sm font-medium text-slate-700">{relationshipLabel(relationship.relation_type)}</p> : null}
         </div>
-        {!isManaging ? (
+        {!isManaging && !readOnly ? (
           <button type="button" onClick={() => setIsManaging(true)} className="min-h-11 shrink-0 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600">
             Administrar
           </button>
         ) : null}
       </div>
 
-      {isManaging ? (
+      {isManaging && !readOnly ? (
         <div className="mt-4 space-y-4 border-t border-slate-200 pt-4">
           <form action={saveGuardianRelationshipAction} className="space-y-4">
             <input type="hidden" name="student_id" value={relationship.student_id} />
@@ -95,7 +95,7 @@ function RelationshipItem({ relationship }: { relationship: GuardianRelationship
   );
 }
 
-export function GuardianRelationshipsList({ relationships }: { relationships: GuardianRelationship[] }) {
+export function GuardianRelationshipsList({ relationships, readOnly = false }: { relationships: GuardianRelationship[]; readOnly?: boolean }) {
   const [query, setQuery] = useState('');
   const [expandedStudents, setExpandedStudents] = useState<Set<number>>(() => new Set());
   const groups = useMemo<StudentRelationshipGroup[]>(() => {
@@ -147,7 +147,7 @@ export function GuardianRelationshipsList({ relationships }: { relationships: Gu
             return (
               <article key={group.student.id} data-testid={`student-relationship-group-${group.student.id}`} className={`overflow-hidden rounded-2xl border ${isExpanded ? 'border-sky-200' : 'border-slate-200'}`}>
                 <h3>
-                  <button type="button" aria-expanded={isExpanded} aria-controls={panelId} onClick={() => toggleStudent(group.student.id)} className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-sky-600">
+                  <button type="button" aria-expanded={isExpanded} aria-controls={panelId} onClick={() => toggleStudent(group.student.id)} className="accordion-trigger flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-sky-600">
                     <span className="min-w-0">
                       <span className="block break-words font-semibold text-slate-900">{group.student.name}</span>
                       {group.student.course ? <span className="mt-1 block text-sm font-normal text-slate-500">{group.student.course}</span> : null}
@@ -161,7 +161,7 @@ export function GuardianRelationshipsList({ relationships }: { relationships: Gu
                 {isExpanded ? (
                   <div id={panelId} className="space-y-3 border-t border-slate-200 bg-slate-50/60 p-4">
                     <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Personas vinculadas ({group.relationships.length})</h4>
-                    {group.relationships.map((relationship) => <RelationshipItem key={relationship.relation_id} relationship={relationship} />)}
+                    {group.relationships.map((relationship) => <RelationshipItem key={relationship.relation_id} relationship={relationship} readOnly={readOnly} />)}
                   </div>
                 ) : null}
               </article>

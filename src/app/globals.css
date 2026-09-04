@@ -18,3 +18,37 @@ a {
   color: inherit;
   text-decoration: none;
 }
+
+details[data-accordion] > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  list-style: none;
+  cursor: pointer;
+}
+
+details[data-accordion] > summary::-webkit-details-marker { display: none; }
+details[data-accordion] > summary > span { display: none; }
+
+details[data-accordion] > summary::after {
+  flex: 0 0 auto;
+  color: #94a3b8;
+  content: '⌄';
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+details[data-accordion][open] > summary::after { content: '⌃'; }
+
+details[data-accordion] > summary + form {
+  margin-top: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  background: #fff;
+  padding: 1rem;
+}
+
+.accordion-trigger .accordion-chevron { transition: transform 180ms ease; }
+.accordion-trigger[aria-expanded='true'] .accordion-chevron { transform: rotate(180deg); }

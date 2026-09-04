@@ -21,17 +21,24 @@ function client(): SupabaseClient {
 
 function codes() {
   const suffix = getE2EConfig().namespace.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 14);
+  // Versionamos los códigos de estudiante para aislar los fixtures creados por
+  // versiones anteriores del setup sin eliminar datos remotos existentes.
+  const fixtureVersion = 'V2';
   return {
     institution: `VALIDGATE E2E ${getE2EConfig().namespace}`,
     course: `Curso E2E ${getE2EConfig().namespace}`,
-    inside: `E2E-${suffix}-IN`,
-    outside: `E2E-${suffix}-OUT`,
+    inside: `E2E-${suffix}-${fixtureVersion}-IN`,
+    outside: `E2E-${suffix}-${fixtureVersion}-OUT`,
   };
 }
 
 function secondaryGuardianEmail() {
   const namespace = getE2EConfig().namespace.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 24);
   return `apoderado.secundario.${namespace}@example.invalid`;
+}
+
+export function secondaryGuardianCredentials() {
+  return { email: secondaryGuardianEmail(), password: SECONDARY_GUARDIAN_PASSWORD };
 }
 
 const SECONDARY_GUARDIAN_PASSWORD = 'ValidGate-E2E-Secondary-2026!';
@@ -41,17 +48,18 @@ function traceabilityMarker() {
   return `PF-TRA-002-${getE2EConfig().namespace}`;
 }
 
-function traceabilityEmail(kind: 'student' | 'teacher') {
+function traceabilityEmail(kind: 'student' | 'teacher', suffix = '') {
   const namespace = getE2EConfig().namespace.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 22);
-  return `${kind}.trazabilidad.${namespace}@example.invalid`;
+  return `${kind}.trazabilidad${suffix ? `.${suffix}` : ''}.${namespace}@example.invalid`;
 }
 
 async function ensureTraceabilityUser(
   db: SupabaseClient,
   kind: 'student' | 'teacher',
   institutionId: number,
+  suffix = '',
 ) {
-  const email = traceabilityEmail(kind);
+  const email = traceabilityEmail(kind, suffix);
   const role: E2ERole = kind === 'student' ? 'ESTUDIANTE' : 'DOCENTE';
   const firstName = kind === 'student' ? 'Estudiante' : 'Docente';
   const lastName = kind === 'student' ? 'E2E Familia B' : 'Secundario E2E';
@@ -121,6 +129,8 @@ export async function removeRetrieverFixture(kind: 'existing' | 'new') {
   const user = await findAuthUser(db, identity.email);
   if (!user) return;
   await assertNoError(`No se pudieron limpiar vínculos del retirador ${kind}`,
+    (await db.from('guardian_pickup_requests').delete().eq('guardian_profile_id', user.id)).error);
+  await assertNoError(`No se pudieron limpiar vínculos del retirador ${kind}`,
     (await db.from('guardian_students').delete().eq('guardian_profile_id', user.id)).error);
   const { error } = await db.auth.admin.deleteUser(user.id);
   await assertNoError(`No se pudo eliminar el usuario retirador ${kind}`, error);
@@ -151,6 +161,8 @@ export async function ensureExistingRetriever(options: { authorize?: boolean } =
       rut: identity.rut,
       role: 'RETIRADOR_AUTORIZADO',
     })).error);
+  await assertNoError('No se pudieron limpiar retiros anteriores del retirador E2E',
+    (await db.from('guardian_pickup_requests').delete().eq('guardian_profile_id', user.id)).error);
   await assertNoError('No se pudieron limpiar autorizaciones anteriores del retirador E2E',
     (await db.from('guardian_students').delete().eq('guardian_profile_id', user.id)).error);
   let relationId: number | null = null;
@@ -170,6 +182,33 @@ export async function ensureExistingRetriever(options: { authorize?: boolean } =
     relationId = Number(requireData('No se creó la autorización E2E', relation).id);
   }
   return { ...identity, profileId: user.id, relationId, studentId: students.inside };
+}
+
+export async function ensureRegisteredGuardian(kind: 'existing' | 'new') {
+  const { db, institutionId } = await resolveE2EData();
+  const identity = retrieverIdentity(kind);
+  let user = await findAuthUser(db, identity.email);
+  if (!user) {
+    const { data, error } = await db.auth.admin.createUser({
+      email: identity.email,
+      password: identity.password,
+      email_confirm: true,
+      user_metadata: { first_name: identity.firstName, last_name: identity.lastName },
+      app_metadata: { validgate_e2e: true, e2e_namespace: getE2EConfig().namespace },
+    });
+    await assertNoError('No se pudo crear el apoderado E2E', error);
+    user = requireData('No se pudo crear el apoderado E2E', data.user);
+  }
+  await assertNoError('No se pudo preparar el perfil del apoderado E2E',
+    (await db.from('profiles').upsert({
+      id: user.id, institution_id: institutionId, first_name: identity.firstName,
+      last_name: identity.lastName, email: identity.email, role: 'APODERADO',
+    })).error);
+  await assertNoError('No se pudieron limpiar retiros anteriores del apoderado E2E',
+    (await db.from('guardian_pickup_requests').delete().eq('guardian_profile_id', user.id)).error);
+  await assertNoError('No se pudieron limpiar vínculos anteriores del apoderado E2E',
+    (await db.from('guardian_students').delete().eq('guardian_profile_id', user.id)).error);
+  return { ...identity, profileId: user.id };
 }
 
 export async function activateNewRetrieverAccount() {
@@ -267,6 +306,45 @@ async function findAuthUser(db: SupabaseClient, email: string): Promise<User | n
   throw new Error('La búsqueda de usuarios Auth excedió 1000 registros; ajusta el preparador E2E.');
 }
 
+export function registrationFixture(kind: 'basic' | 'guardian') {
+  const namespace = getE2EConfig().namespace.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20);
+  return {
+    email: `registro.${kind}.${namespace}@example.invalid`,
+    password: `ValidGate-E2E-Registro-${kind}-2026!`,
+    firstName: kind === 'guardian' ? 'Apoderado Registrado' : 'Usuario Registrado',
+    lastName: 'E2E',
+    rut: kind === 'guardian' ? '22.222.222-2' : '12.345.678-5',
+    institutionName: `VALIDGATE E2E ${getE2EConfig().namespace}`,
+  };
+}
+
+export async function removeRegistrationFixture(kind: 'basic' | 'guardian') {
+  const db = client();
+  const fixture = registrationFixture(kind);
+  const user = await findAuthUser(db, fixture.email);
+  if (!user) return;
+  await assertNoError(`No se pudo eliminar el registro E2E ${kind}`, (await db.auth.admin.deleteUser(user.id)).error);
+}
+
+export async function activateRegistrationFixture(kind: 'basic' | 'guardian') {
+  const db = client();
+  const fixture = registrationFixture(kind);
+  const user = await findAuthUser(db, fixture.email);
+  if (!user) throw new Error(`No se encontró la cuenta registrada E2E ${kind}.`);
+  await assertNoError(`No se pudo activar la cuenta registrada E2E ${kind}`,
+    (await db.auth.admin.updateUserById(user.id, { email_confirm: true, password: fixture.password })).error);
+}
+
+export async function registrationProfile(kind: 'basic' | 'guardian') {
+  const db = client();
+  const fixture = registrationFixture(kind);
+  const user = await findAuthUser(db, fixture.email);
+  if (!user) throw new Error(`No se encontró el usuario registrado E2E ${kind}.`);
+  const { data, error } = await db.from('profiles').select('id, institution_id, role').eq('id', user.id).single();
+  await assertNoError(`No se pudo consultar el perfil registrado E2E ${kind}`, error);
+  return requireData(`No existe el perfil registrado E2E ${kind}`, data);
+}
+
 async function ensureInstitution(db: SupabaseClient) {
   const names = codes();
   const { data: existing, error: readError } = await db
@@ -327,11 +405,15 @@ async function ensureUser(db: SupabaseClient, role: E2ERole, institutionId: numb
 
   user = requireData(`No se pudo resolver el usuario ${role}`, user);
 
+  // Las cuentas del namespace pueden conservar metadata de una ejecución
+  // anterior. Si el correo está marcado como E2E, la preparación debe renovar
+  // siempre la contraseña para que el login no dependa del estado remoto.
   const managed =
     user.app_metadata?.validgate_e2e === true &&
     user.app_metadata?.e2e_namespace === config.namespace;
+  const e2eMarked = credentials.email.toLowerCase().includes(config.emailMarker);
 
-  if (managed) {
+  if (managed || e2eMarked) {
     const { error: authError } = await db.auth.admin.updateUserById(user.id, {
       password: credentials.password,
       email_confirm: true,
@@ -543,6 +625,7 @@ export async function prepareTraceabilityFixtures() {
     foreignCourseId = Number(requireData('No se creó el curso ajeno E2E', data).id);
   }
 
+  const teacherForeign = await ensureTraceabilityUser(db, 'teacher', foreignInstitutionId, 'extranjero');
   const foreignLinkCode = `${marker}-FOREIGN`.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 48);
   const { data: existingForeignStudent, error: foreignStudentReadError } = await db.from('students')
     .select('id').eq('link_code', foreignLinkCode).maybeSingle();
@@ -561,6 +644,9 @@ export async function prepareTraceabilityFixtures() {
     await assertNoError('No se pudo crear el estudiante ajeno E2E', error);
     foreignStudentId = Number(requireData('No se creó el estudiante ajeno E2E', data).id);
   }
+
+  await assertNoError('No se pudo alinear el estudiante ajeno E2E con su institución',
+    (await db.from('students').update({ institution_id: foreignInstitutionId, course_id: foreignCourseId }).eq('id', foreignStudentId)).error);
 
   await assertNoError('No se pudieron limpiar eventos anteriores de trazabilidad E2E',
     (await db.from('access_events').delete().like('notes', `${marker}%`)).error);
@@ -634,6 +720,8 @@ export async function prepareTraceabilityFixtures() {
     },
     studentB,
     teacherB,
+    teacherForeign,
+    foreignInstitutionName,
   };
 }
 
@@ -686,13 +774,30 @@ export async function cleanupTraceabilityFixtures() {
 export async function resetE2EState() {
   const { db, institutionId, students } = await resolveE2EData();
   const studentIds = [students.inside, students.outside];
+  const cleanupGuardian = credentialsFor('APODERADO');
+  const { data: cleanupGuardianProfile, error: cleanupGuardianError } = await db
+    .from('profiles').select('id').eq('email', cleanupGuardian.email).single();
+  await assertNoError('No se pudo resolver el apoderado E2E', cleanupGuardianError);
+  const cleanupGuardianId = requireData('No se pudo resolver el apoderado E2E', cleanupGuardianProfile).id;
+  const { data: linkedStudents, error: linkedStudentsError } = await db
+    .from('guardian_students').select('student_id')
+    .eq('guardian_profile_id', cleanupGuardianId).eq('relation_type', 'APODERADO');
+  await assertNoError('No se pudieron resolver los estudiantes vinculados del apoderado E2E', linkedStudentsError);
+  const cleanupStudentIds = Array.from(new Set([
+    ...studentIds,
+    ...(linkedStudents ?? []).map((link: { student_id: number }) => Number(link.student_id)),
+  ]));
 
   await assertNoError('No se pudieron limpiar autorizaciones E2E',
     (await db.from('student_exit_authorizations').delete().in('student_id', studentIds)).error);
   await assertNoError('No se pudieron limpiar solicitudes de autorización E2E',
     (await db.from('authorization_requests').delete().in('student_id', studentIds)).error);
   await assertNoError('No se pudieron limpiar retiros E2E',
-    (await db.from('guardian_pickup_requests').delete().in('student_id', studentIds)).error);
+    (await db.from('guardian_pickup_requests').delete().in('student_id', cleanupStudentIds)).error);
+  await assertNoError('No se pudieron limpiar vínculos externos del apoderado E2E',
+    (await db.from('guardian_students').delete()
+      .eq('guardian_profile_id', cleanupGuardianId).eq('relation_type', 'APODERADO')
+      .not('student_id', 'in', `(${studentIds.join(',')})`)).error);
   await assertNoError('No se pudieron limpiar notificaciones E2E',
     (await db.from('internal_notifications').delete().eq('institution_id', institutionId)).error);
   await assertNoError('No se pudieron limpiar credenciales E2E',
@@ -726,6 +831,74 @@ export async function resetE2EState() {
       .eq('guardian_profile_id', resolvedGuardian.id).eq('student_id', students.outside)).error);
 }
 
+export async function ensureSameNameInstitutionLink() {
+  const { db, students } = await resolveE2EData();
+  const config = getE2EConfig();
+  const institutionName = `VALIDGATE E2E OTRA ${config.namespace}`;
+  const courseName = `Curso otra institución ${config.namespace}`;
+  const linkCode = `E2E-${config.namespace}-SAME-NAME`.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 48);
+  const primary = credentialsFor('APODERADO');
+  const { data: primaryProfile, error: primaryError } = await db.from('profiles').select('id').eq('email', primary.email).single();
+  await assertNoError('No se pudo resolver el apoderado E2E para el fixture homónimo', primaryError);
+
+  const { data: institution, error: institutionError } = await db.from('institutions').select('id').eq('name', institutionName).maybeSingle();
+  await assertNoError('No se pudo consultar la institución homónima E2E', institutionError);
+  let institutionId = institution ? Number(institution.id) : null;
+  if (institutionId === null) {
+    const { data, error } = await db.from('institutions').insert({ name: institutionName, institution_type: 'COLEGIO_E2E_AJENO' }).select('id').single();
+    await assertNoError('No se pudo crear la institución homónima E2E', error);
+    institutionId = Number(requireData('No se creó la institución homónima E2E', data).id);
+  }
+  const { data: course, error: courseError } = await db.from('courses').select('id').eq('institution_id', institutionId).eq('name', courseName).maybeSingle();
+  await assertNoError('No se pudo consultar el curso homónimo E2E', courseError);
+  let courseId = course ? Number(course.id) : null;
+  if (courseId === null) {
+    const { data, error } = await db.from('courses').insert({ institution_id: institutionId, name: courseName }).select('id').single();
+    await assertNoError('No se pudo crear el curso homónimo E2E', error);
+    courseId = Number(requireData('No se creó el curso homónimo E2E', data).id);
+  }
+  const { data: existingStudent, error: studentError } = await db.from('students').select('id').eq('link_code', linkCode).maybeSingle();
+  await assertNoError('No se pudo consultar el estudiante homónimo E2E', studentError);
+  let studentId = existingStudent ? Number(existingStudent.id) : null;
+  if (studentId === null) {
+    const { data, error } = await db.from('students').insert({
+      institution_id: institutionId,
+      course_id: courseId,
+      first_name: 'Estudiante',
+      last_name: 'E2E Dentro',
+      can_leave_alone: false,
+      is_in_institution: true,
+      link_code: linkCode,
+    }).select('id').single();
+    await assertNoError('No se pudo crear el estudiante homónimo E2E', error);
+    studentId = Number(requireData('No se creó el estudiante homónimo E2E', data).id);
+  }
+  const { data: relation, error: relationError } = await db.from('guardian_students').select('id').eq('guardian_profile_id', requireData('No se resolvió el apoderado E2E', primaryProfile).id).eq('student_id', studentId).eq('relation_type', 'APODERADO').maybeSingle();
+  await assertNoError('No se pudo consultar el vínculo homónimo E2E', relationError);
+  if (!relation) {
+    await assertNoError('No se pudo crear el vínculo homónimo E2E', (await db.from('guardian_students').insert({ guardian_profile_id: requireData('No se resolvió el apoderado E2E', primaryProfile).id, student_id: studentId, relation_type: 'APODERADO' })).error);
+  }
+  return { studentId, studentName: 'Estudiante E2E Dentro', institutionName, primaryStudentId: students.inside };
+}
+
+export async function removeSameNameInstitutionLink() {
+  const { db } = await resolveE2EData();
+  const config = getE2EConfig();
+  const institutionName = `VALIDGATE E2E OTRA ${config.namespace}`;
+  const { data: institution, error: institutionError } = await db.from('institutions').select('id').eq('name', institutionName).maybeSingle();
+  await assertNoError('No se pudo resolver la institución homónima E2E', institutionError);
+  if (!institution) return;
+  const { data: students, error: studentError } = await db.from('students').select('id').eq('institution_id', institution.id);
+  await assertNoError('No se pudieron resolver estudiantes homónimos E2E', studentError);
+  const ids = (students ?? []).map((student) => student.id);
+  if (!ids.length) return;
+  const primary = credentialsFor('APODERADO');
+  const { data: profile, error: profileError } = await db.from('profiles').select('id').eq('email', primary.email).single();
+  await assertNoError('No se pudo resolver el apoderado E2E para limpiar el fixture homónimo', profileError);
+  await assertNoError('No se pudieron limpiar retiros homónimos E2E', (await db.from('guardian_pickup_requests').delete().in('student_id', ids)).error);
+  await assertNoError('No se pudo limpiar el vínculo homónimo E2E', (await db.from('guardian_students').delete().eq('guardian_profile_id', requireData('No se resolvió el apoderado E2E', profile).id).in('student_id', ids)).error);
+}
+
 export async function setStudentState(key: StudentKey, values: { inside?: boolean; canLeaveAlone?: boolean }) {
   const { db, students } = await resolveE2EData();
   const payload: Record<string, boolean> = {};
@@ -744,7 +917,7 @@ export async function isOutsideStudentLinkedToGuardian() {
   const resolvedGuardian = requireData('No se pudo resolver el apoderado E2E', guardianProfile);
   const { data, error } = await db.from('guardian_students').select('id')
     .eq('guardian_profile_id', resolvedGuardian.id).eq('student_id', students.outside).maybeSingle();
-  await assertNoError('No se pudo consultar la vinculaciÃ³n temporal E2E', error);
+  await assertNoError('No se pudo consultar la vinculación temporal E2E', error);
   return Boolean(data);
 }
 
@@ -755,9 +928,22 @@ export async function removeOutsideStudentGuardianLink() {
     .from('profiles').select('id').eq('email', guardian.email).single();
   await assertNoError('No se pudo resolver el apoderado E2E', guardianError);
   const resolvedGuardian = requireData('No se pudo resolver el apoderado E2E', guardianProfile);
-  await assertNoError('No se pudo eliminar la vinculaciÃ³n temporal E2E',
+  await assertNoError('No se pudo eliminar la vinculación temporal E2E',
     (await db.from('guardian_students').delete()
       .eq('guardian_profile_id', resolvedGuardian.id).eq('student_id', students.outside)).error);
+}
+
+export async function removeStudentByCode(linkCode: string) {
+  const db = client();
+  const { data: student, error: studentError } = await db.from('students').select('id').eq('link_code', linkCode).maybeSingle();
+  await assertNoError('No se pudo resolver el estudiante E2E creado por el administrador', studentError);
+  if (!student) return;
+  const studentId = Number(student.id);
+  await assertNoError('No se pudieron limpiar retiros del estudiante E2E creado', (await db.from('guardian_pickup_requests').delete().eq('student_id', studentId)).error);
+  await assertNoError('No se pudieron limpiar vínculos del estudiante E2E creado', (await db.from('guardian_students').delete().eq('student_id', studentId)).error);
+  await assertNoError('No se pudieron limpiar eventos del estudiante E2E creado', (await db.from('access_events').delete().eq('student_id', studentId)).error);
+  await assertNoError('No se pudieron limpiar credenciales del estudiante E2E creado', (await db.from('student_qr_credentials').delete().eq('student_id', studentId)).error);
+  await assertNoError('No se pudo eliminar el estudiante E2E creado por el administrador', (await db.from('students').delete().eq('id', studentId)).error);
 }
 
 export async function ensureSecondaryGuardianProfile() {
@@ -793,6 +979,8 @@ export async function ensureSecondaryGuardianProfile() {
       email,
       role: 'APODERADO',
     })).error);
+  await assertNoError('No se pudieron limpiar retiros del apoderado secundario E2E',
+    (await db.from('guardian_pickup_requests').delete().eq('guardian_profile_id', user.id)).error);
   await assertNoError('No se pudo limpiar el vínculo secundario E2E anterior',
     (await db.from('guardian_students').delete()
       .eq('guardian_profile_id', user.id).in('student_id', [students.inside, students.outside])).error);
@@ -825,6 +1013,8 @@ export async function removeSecondaryGuardianRelationships() {
   const { data: profile, error } = await db.from('profiles').select('id').eq('email', secondaryGuardianEmail()).maybeSingle();
   await assertNoError('No se pudo resolver el apoderado secundario E2E', error);
   if (!profile) return;
+  await assertNoError('No se pudieron limpiar retiros del apoderado secundario E2E',
+    (await db.from('guardian_pickup_requests').delete().eq('guardian_profile_id', profile.id)).error);
   await assertNoError('No se pudieron limpiar los vínculos secundarios E2E',
     (await db.from('guardian_students').delete()
       .eq('guardian_profile_id', profile.id).in('student_id', [students.inside, students.outside])).error);

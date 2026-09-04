@@ -76,13 +76,15 @@ async function validateBothPins(
   await changeRole(page);
   await login(page, 'PORTERIA');
   await page.goto('/guard');
-  const request = page.locator('article').filter({ hasText: 'Estudiante E2E Dentro' }).first();
+  const request = page.locator('details[data-accordion]').filter({ hasText: 'Estudiante E2E Dentro' }).first();
+  await expect(request).not.toHaveAttribute('open', '');
+  await request.locator('summary').first().click();
   if (captureEvidence) await captureEvidence('Portería: ambas personas pendientes de validación', request);
   await request.getByLabel('PIN de apoderado primario').fill(pins.guardianPin);
   await request.getByLabel('PIN de apoderado primario').locator('..').getByRole('button', { name: 'Validar PIN' }).click();
   await expect(page.getByText('PIN validado correctamente.')).toBeVisible();
 
-  const refreshed = page.locator('article').filter({ hasText: 'Estudiante E2E Dentro' }).first();
+  const refreshed = page.locator('details[data-accordion]').filter({ hasText: 'Estudiante E2E Dentro' }).first();
   await refreshed.getByLabel('PIN de estudiante').fill(pins.studentPin);
   await refreshed.getByLabel('PIN de estudiante').locator('..').getByRole('button', { name: 'Validar PIN' }).click();
   await expect(page.getByText(/Validación OK.*Estudiante E2E Dentro.*Apoderado E2E/)).toBeVisible();
@@ -116,6 +118,7 @@ async function captureApprovedPickupTraceability(page: Page, captureEvidence: Ca
     .filter({ hasText: 'Aprobado' })
     .first();
   await expect(pickupEvent).toBeVisible();
+  await expect(pickupEvent).toContainText('Retirado por: Apoderado E2E');
   await captureEvidence('Trazabilidad completa generada: retiro aprobado registrado', recentTraceability);
 }
 
@@ -123,15 +126,24 @@ test.describe('Retiro con PIN dual', () => {
   test.describe.configure({ timeout: 120_000 });
   test.beforeEach(async () => resetE2EState());
 
-  test('PF-RET-001 — Notificar el retiro de un estudiante', async ({ page, captureEvidence }) => {
+  test('PF-RET-001 — Notificar el retiro de un estudiante como apoderado', async ({ page, captureEvidence }) => {
     await login(page, 'ESTUDIANTE');
     await expect(page.getByRole('heading', { name: 'Solicitudes de retiro pendientes' })).not.toBeVisible();
     await captureEvidence('Estado inicial del estudiante: sin solicitud de retiro');
     await changeRole(page);
-    await createPickupRequest(page);
-    await expect(page.getByRole('heading', { name: 'Retiros en curso' })).toBeVisible();
-    await expect(page.getByText('Esperando respuesta del estudiante', { exact: true })).toBeVisible();
-    await captureEvidence('Apoderado Primario: solicitud de retiro enviada', page.getByRole('heading', { name: 'Retiros en curso' }).locator('xpath=ancestor::section[1]'));
+    await login(page, 'APODERADO');
+    const linkedStudents = page.getByRole('heading', { name: 'Estudiantes vinculados' }).locator('xpath=ancestor::section[1]');
+    const studentCard = linkedStudents.locator('article').filter({ hasText: 'Estudiante E2E Dentro' }).first();
+    const notifyPickupButton = studentCard.getByRole('button', { name: 'Notificar retiro' });
+    await expect(notifyPickupButton).toBeEnabled();
+    await captureEvidence('Apoderado Primario: botón de retiro disponible y habilitado para el estudiante', studentCard);
+    await notifyPickupButton.click();
+    await expect(page.getByText('Solicitud de retiro enviada al estudiante.')).toBeVisible();
+    await expect(studentCard.getByRole('button', { name: 'Retiro en curso' })).toBeDisabled();
+    const activePickups = page.getByRole('heading', { name: 'Retiros en curso' }).locator('xpath=ancestor::section[1]');
+    await expect(activePickups).toBeVisible();
+    await expect(activePickups.locator('article').filter({ hasText: 'Estudiante E2E Dentro' }).filter({ hasText: 'Esperando respuesta del estudiante' }).first()).toBeVisible();
+    await captureEvidence('Apoderado Primario: solicitud de retiro enviada', activePickups);
     await changeRole(page);
     await login(page, 'ESTUDIANTE');
     const receivedRequest = page.getByRole('heading', { name: 'Solicitudes de retiro pendientes' }).locator('xpath=ancestor::section[1]');
@@ -158,10 +170,11 @@ test.describe('Retiro con PIN dual', () => {
       .filter({ hasText: 'Rechazado' })
       .first();
     await expect(rejectedPickup).toBeVisible();
+    await expect(rejectedPickup).toContainText('Solicitud de retiro rechazada por Estudiante E2E Dentro.');
     await captureEvidence('Trazabilidad reciente completa: rechazo de la solicitud registrado', traceability);
   });
 
-  test('PF-RET-004 — Completar un retiro como Apoderado Primario usando PIN dual', async ({ page, captureEvidence }) => {
+  test('PF-RET-004 — Completar un retiro de estudiante como Apoderado Primario usando PIN dual', async ({ page, captureEvidence }) => {
     const pins = await prepareAcceptedPickup(page, captureEvidence);
     expect(pins.studentPin).not.toBe(pins.guardianPin);
     await validateBothPins(page, pins, captureEvidence);
@@ -169,35 +182,22 @@ test.describe('Retiro con PIN dual', () => {
     await captureApprovedPickupTraceability(page, captureEvidence);
   });
 
-  test('PF-RET-005 — Consultar el PIN DUAL vigente desde Autenticaciones', async ({ page, captureEvidence }) => {
+  test('PF-RET-005 — Consultar el estado del PIN DUAL de retiro vigente desde Autenticaciones como Portería', async ({ page, captureEvidence }) => {
     const pins = await prepareAcceptedPickup(page, captureEvidence);
-
-    await page.getByRole('link', { name: 'PIN dual disponible' }).click();
-    await expect(page.getByRole('heading', { name: 'Credenciales PIN DUAL' })).toBeVisible();
-    await expect(page.getByText('Tu PIN de responsable', { exact: true })).toBeVisible();
-    await expect(page.getByText(pins.guardianPin, { exact: true })).toBeVisible();
-    await captureEvidence(
-      'Apoderado Primario: PIN DUAL vigente consultado en Autenticaciones',
-      page.getByRole('heading', { name: 'Credenciales PIN DUAL' }).locator('xpath=ancestor::section[1]'),
-      { revealPins: true },
-    );
-
     await changeRole(page);
-    await login(page, 'ESTUDIANTE');
-    await page.getByRole('link', { name: 'PIN dual disponible' }).click();
-    await expect(page.getByText('Tu PIN de estudiante', { exact: true })).toBeVisible();
-    await expect(page.getByText(pins.studentPin, { exact: true })).toBeVisible();
-    await captureEvidence(
-      'Estudiante: PIN DUAL vigente consultado en Autenticaciones',
-      page.getByRole('heading', { name: 'Credenciales PIN DUAL' }).locator('xpath=ancestor::section[1]'),
-      { revealPins: true },
-    );
-
+    await login(page, 'PORTERIA');
+    await page.goto('/guard');
+    const queue = page.getByRole('heading', { name: /Retiros con validación dual|Retiros pendientes/ }).locator('xpath=ancestor::section[1]');
+    const pendingPickup = page.locator('details[data-accordion]').filter({ hasText: 'Estudiante E2E Dentro' }).first();
+    await pendingPickup.locator('summary').first().click();
+    await expect(pendingPickup.getByLabel('PIN de apoderado primario')).toBeVisible();
+    await expect(pendingPickup.getByLabel('PIN de estudiante')).toBeVisible();
+    await captureEvidence('Portería: vista de retiro vigente muestra ambos campos de validación PIN DUAL', queue, { revealPins: true });
     await validateBothPins(page, pins, captureEvidence);
     await captureApprovedPickupTraceability(page, captureEvidence);
   });
 
-  test('PF-RET-006 — Registrar la salida efectiva del estudiante como Apoderado Primario', async ({ page, captureEvidence }) => {
+  test('PF-RET-006 — Registrar el retiro efectivo del estudiante como Apoderado Primario', async ({ page, captureEvidence }) => {
     const pins = await prepareAcceptedPickup(page, captureEvidence);
     const completedPickup = await validateBothPins(page, pins, captureEvidence);
     await expect(page.getByText('No hay retiros activos en la cola.')).toBeVisible();

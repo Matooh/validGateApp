@@ -195,7 +195,7 @@ export function AppChrome({
                   <span>Logout</span>
                 </button>
               </form>
-              <p className="text-sm font-semibold text-white">ValidGate Version x.x.x</p>
+              <p className="text-sm font-semibold text-white">ValidGate Version 1.1.0</p>
             </div>
           </aside>
         </div>

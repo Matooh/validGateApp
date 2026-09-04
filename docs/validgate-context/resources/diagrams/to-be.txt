@@ -1,0 +1,123 @@
+@startuml
+title Flujo TO-BE simplificado - VALIDGATE
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam roundcorner 15
+
+skinparam activity {
+    BackgroundColor white
+    BorderColor #666666
+    FontColor #222222
+    DiamondBackgroundColor white
+    DiamondBorderColor #666666
+    StartColor #222222
+    EndColor #222222
+    ArrowColor #333333
+}
+
+start
+
+switch (Escenario operativo)
+
+case (Registro manual con portería)
+
+    :Portería busca estudiante;
+
+    :Sistema consulta estado,\npermisos y autorizaciones;
+
+    :Portería valida con QR o\nmétodo manual de contingencia;
+
+
+case (Estudiante con salida autónoma)
+
+    :Sistema verifica que estudiante\nesté dentro de la institución;
+
+    :Sistema verifica permiso\nde salida autónoma;
+
+    :Estudiante genera QR;
+
+    :Sistema valida QR vigente;
+
+
+case (Estudiante sin salida autónoma)
+
+    :Sistema verifica que estudiante\nesté dentro de la institución;
+
+    :Apoderado o estudiante inicia\nproceso de retiro;
+
+    :Sistema inicia proceso de retiro;
+
+    if (¿Ambos PIN coinciden?) then (Sí)
+
+        :Sistema valida evento como OK;
+
+        :Apoderado y estudiante deben\ndirigirse a portería;
+
+        :Portería corrobora evento;
+
+    else (No)
+
+        :Sistema permite hasta\n3 intentos adicionales;
+
+        if (¿PIN coincide?) then (Sí)
+
+            :Sistema valida evento como OK;
+
+            :Apoderado y estudiante deben\ndirigirse a portería;
+
+            :Portería corrobora evento;
+
+        else (No)
+
+            :Sistema registra\nsolicitud rechazada;
+
+            :Registrar evento RECHAZADO;
+
+            :Mantener estado actual\ndel estudiante;
+
+            :Sistema informa el \npor qué del rechazo;
+
+            :Generar trazabilidad;
+
+            stop
+
+        endif
+
+    endif
+
+endswitch
+
+
+' =========================================================
+' CONVERGENCIA DE FLUJOS VÁLIDOS
+' =========================================================
+
+:Evaluar reglas institucionales;
+
+if (¿Cumple condiciones?) then (Sí)
+
+    :Registrar evento APROBADO;
+
+    :Actualizar estado del estudiante;
+
+else (No)
+
+    :Registrar evento RECHAZADO;
+
+    :Mantener estado actual;
+
+    :Sistema informa el \npor qué del rechazo;
+
+endif
+
+
+' =========================================================
+' TRAZABILIDAD
+' =========================================================
+
+:Generar trazabilidad;
+
+stop
+
+@enduml

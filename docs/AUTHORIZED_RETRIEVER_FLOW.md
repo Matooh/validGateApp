@@ -58,7 +58,7 @@ El archivo `e2e/authorized-retriever-pickup.spec.ts` implementa:
 | PF-APO-SEC-002 | Cuenta preexistente sin estudiantes, reutilización, activación del vínculo y estudiante visible. |
 | PF-APO-SEC-003 | Retiro como Apoderado Secundario: solicitud, aceptación, PIN de ambos actores, cierre automático y trazabilidad final. |
 | PF-APO-SEC-004 | Vínculo inicialmente disponible, revocación concurrente y toast de rechazo. |
-| PF-APO-SEC-005 | Retiro activo, revocación, cancelación inmediata e invalidación del PIN. |
+| PF-APO-SEC-005 | Revocación por el Apoderado Primario y bloqueo del inicio de un retiro por el Apoderado Secundario. |
 | PF-APO-SEC-007 | Único estudiante visible y rechazo al solicitar otro estudiante. |
 
 Las capturas enmascaran passwords y payloads. Los códigos de vinculación y PIN pueden mostrarse en evidencias E2E controladas cuando el caso exige comprobar el valor ingresado o entregado. Para una instalación que ya aplicó la migración 026 también debe aplicarse `027_fix_confirm_guardian_pickup_request_id.sql`.

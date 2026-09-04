@@ -12,6 +12,8 @@ type AuthenticationQrCardProps = {
   studentId?: number;
   initialCredentialId?: string | null;
   initialExpiresAt?: string | null;
+  canLeaveAlone?: boolean | null;
+  isInInstitution?: boolean | null;
   unavailableMessageCode?: QrMessageCode;
 };
 
@@ -21,6 +23,8 @@ export function AuthenticationQrCard({
   studentId,
   initialCredentialId = null,
   initialExpiresAt = null,
+  canLeaveAlone = null,
+  isInInstitution = null,
   unavailableMessageCode = 'STUDENT_PROFILE_NOT_LINKED',
 }: AuthenticationQrCardProps) {
   const [qrPayload, setQrPayload] = useState<string | null>(
@@ -39,7 +43,7 @@ export function AuthenticationQrCard({
   }, [expiresAt, now]);
 
   const isExpired = Boolean(expiresAt) && secondsRemaining <= 0;
-  const canGenerate = typeof studentId === 'number';
+  const canGenerate = typeof studentId === 'number' && !(canLeaveAlone === false && isInInstitution === true);
 
   const generateCredential = () => {
     if (!canGenerate) {
@@ -95,7 +99,9 @@ export function AuthenticationQrCard({
           ) : null}
           {!canGenerate ? (
             <p className="mt-2 text-xs text-amber-700">
-              {QR_MESSAGE_TEXT[unavailableMessageCode]}
+              {canLeaveAlone === false && isInInstitution === true
+                ? 'No se puede generar un QR de salida mientras el estudiante esté dentro. El retiro requiere autorización y PIN dual.'
+                : QR_MESSAGE_TEXT[unavailableMessageCode]}
             </p>
           ) : null}
           <button

@@ -1,6 +1,13 @@
 export type FormState = {
   success: boolean;
   message: string;
+  formValues?: Partial<{
+    first_name: string;
+    last_name: string;
+    email: string;
+    rut: string;
+    institution_id: string;
+  }>;
 };
 
 export const INITIAL_FORM_STATE: FormState = {
@@ -10,6 +17,7 @@ export const INITIAL_FORM_STATE: FormState = {
 
 export type AppRole =
   | 'ADMIN'
+  | 'PENDIENTE'
   | 'APODERADO'
   | 'RETIRADOR_AUTORIZADO'
   | 'PORTERIA'

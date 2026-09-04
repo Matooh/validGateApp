@@ -1,5 +1,5 @@
 export const AUTHORIZATION_MESSAGE_TEXT = {
-  AUTH_REQUEST_CREATED: 'Solicitud enviada al Apoderado Primario.',
+  AUTH_REQUEST_CREATED: 'Solicitud enviada a tus apoderados vinculados.',
   AUTH_REQUEST_NOT_ALLOWED: 'No puedes solicitar esta autorización.',
   AUTH_REQUEST_NO_GUARDIAN: 'No hay Apoderados Primarios vinculados para recibir la solicitud.',
   AUTH_REQUEST_STUDENT_NOT_INSIDE: 'Solo puedes solicitar salida si figuras dentro de la institución.',

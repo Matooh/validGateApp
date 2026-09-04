@@ -49,6 +49,17 @@ type ActiveQrCredential = {
 function getDashboardCopy(role?: string | null, firstName?: string | null, email?: string | null) {
   const name = firstName || email || 'usuario';
 
+  if (role === 'PENDIENTE') {
+    return {
+      eyebrow: 'Sin rol asignado',
+      title: `Hola, ${name}.`,
+      description: 'Tu cuenta fue creada correctamente, pero todavía necesita que un administrador asigne un rol.',
+      primaryTitle: 'Cuenta pendiente',
+      primaryDescription: 'Cuando se asigne tu rol podrás acceder a las funciones correspondientes.',
+      recentDescription: 'No hay eventos disponibles mientras tu cuenta esté pendiente.',
+    };
+  }
+
   if (role === 'ADMIN') {
     return {
       eyebrow: 'Administración',
@@ -131,6 +142,7 @@ function getDashboardCopy(role?: string | null, firstName?: string | null, email
 }
 
 function getRoleActionItems(role?: string | null) {
+  if (role === 'PENDIENTE') return [];
   if (role === 'ADMIN') {
     return [
       { href: '/guard', label: 'Módulo portería', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
@@ -209,7 +221,8 @@ export default async function DashboardPage({
           : 'success'
       : 'info';
   const currentStudent =
-    profile?.role === 'ESTUDIANTE'
+    profile?.role === 'ESTUDIANTE' ||
+    profile?.role === 'RETIRADOR_AUTORIZADO'
       ? await getCurrentStudentForAuthenticatedUser()
       : null;
 
@@ -248,11 +261,10 @@ export default async function DashboardPage({
     )
   );
 
-  const institutionNames = ['APODERADO', 'RETIRADOR_AUTORIZADO'].includes(profile?.role ?? '')
-    ? linkedInstitutionNames
-    : staffInstitutionName
-      ? [staffInstitutionName]
-      : [];
+  const institutionNames = Array.from(new Set([
+    ...linkedInstitutionNames,
+    ...(staffInstitutionName ? [staffInstitutionName] : []),
+  ]));
 
   const { data: studentGuardianLinks } =
     currentStudent
@@ -296,7 +308,7 @@ export default async function DashboardPage({
   const studentHasActiveQr = Boolean(studentActiveQrCredential);
   const studentHasPendingAuthorizationRequest = Boolean(pendingStudentAuthorizationRequest);
   const pendingAuthorizationRequests =
-    profile?.role === 'APODERADO'
+    ['APODERADO', 'RETIRADOR_AUTORIZADO'].includes(profile?.role ?? '')
       ? await listGuardianPendingAuthorizationRequests()
       : [];
   const pickupRequests = ['APODERADO', 'RETIRADOR_AUTORIZADO', 'ESTUDIANTE'].includes(profile?.role ?? '')
@@ -312,6 +324,13 @@ export default async function DashboardPage({
   );
   const pickupPinByRequestId = new Map(pickupPins.map((pin) => [pin.requestId, pin]));
   const activePickupByStudentId = new Map(activePickupRequests.map((request) => [request.studentId, request]));
+  const { data: activePickupStudentRows } = ['APODERADO', 'RETIRADOR_AUTORIZADO'].includes(profile?.role ?? '')
+    ? await supabase.rpc('list_active_pickup_student_ids', { p_student_ids: linkedStudentIds })
+    : { data: [] };
+  const activePickupStudentIds = new Set(
+    ((activePickupStudentRows ?? []) as Array<{ student_id: number }>).map((row) => Number(row.student_id)),
+  );
+  const pendingAuthorizationStudentIds = new Set(pendingAuthorizationRequests.map((request) => request.studentId));
 
   let accessEventsQuery = supabase
     .from('access_events')
@@ -338,16 +357,26 @@ export default async function DashboardPage({
     profile?.role === 'ADMIN' ||
     profile?.role === 'PORTERIA' ||
     profile?.role === 'APODERADO' ||
-    profile?.role === 'ESTUDIANTE'
+    profile?.role === 'ESTUDIANTE' ||
+    profile?.role === 'RETIRADOR_AUTORIZADO'
   ) {
     const { data: authData } = await supabase
       .from('authorization_requests')
-      .select('id, status, request_type, requested_at, responded_at, expires_at, reason, guardian_profile_id, students(id, first_name, last_name)')
-      .or('status.eq.PENDING,status.eq.APPROVED,status.eq.REJECTED')
+      .select('id, claim_group_id, status, request_type, requested_at, responded_at, expires_at, reason, guardian_profile_id, students(id, first_name, last_name)')
+      .or('status.eq.PENDING,status.eq.APPROVED,status.eq.REJECTED,status.eq.CANCELLED')
       .order('requested_at', { ascending: false })
       .limit(8);
 
-    recentAuthRequests = (authData ?? []).map((ar: any) => {
+    const groupedAuthData = Array.from(
+      (authData ?? []).reduce((groups: Map<string, any>, ar: any) => {
+        const key = ar.claim_group_id ?? ar.id;
+        const current = groups.get(key);
+        if (!current || (ar.status === 'APPROVED' && current.status !== 'APPROVED')) groups.set(key, ar);
+        return groups;
+      }, new Map<string, any>()).values(),
+    );
+
+    recentAuthRequests = groupedAuthData.map((ar: any) => {
       const isPending =
         ar.status === 'PENDING' &&
         new Date(ar.expires_at ?? ar.requested_at).getTime() > Date.now();
@@ -358,7 +387,9 @@ export default async function DashboardPage({
             ? 'Solicitud de retiro aprobada'
             : ar.status === 'REJECTED'
               ? 'Solicitud de retiro rechazada'
-              : 'Solicitud de retiro expirada';
+              : ar.status === 'CANCELLED'
+                ? 'Solicitud tomada por otro apoderado'
+                : 'Solicitud de retiro expirada';
 
       return {
         id: ar.id,
@@ -393,8 +424,10 @@ export default async function DashboardPage({
           : request.status === 'BOTH_VALIDATED'
             ? 'Ambas personas validadas; completando el retiro automáticamente.'
             : request.status === 'REJECTED_BY_STUDENT'
-              ? 'Solicitud de retiro rechazada por el estudiante.'
-            : `Estado final: ${request.status}`,
+              ? `Solicitud de retiro rechazada por ${request.studentName}.`
+            : request.status === 'COMPLETED'
+              ? 'Retiro completado y salida registrada.'
+              : `Estado final: ${request.status}`,
       students: { id: request.studentId, first_name: request.studentName, last_name: '' },
       isAuthRequest: true,
       isPendingAuthorizationRequest: ['PENDING_STUDENT_RESPONSE', 'PENDING_GUARD_VALIDATION', 'BOTH_VALIDATED'].includes(request.status),
@@ -419,7 +452,12 @@ export default async function DashboardPage({
   return (
     <main className="min-h-screen bg-slate-50">
       <DashboardAutoRefresh expiresAt={autoRefreshExpiresAt} />
-      <FeedbackToast message={toastMessage} tone={toastTone} title="Dashboard" />
+      <FeedbackToast
+        message={toastMessage}
+        tone={toastTone}
+        title="Dashboard"
+        clearQueryParams={['message', 'toast', 'kind']}
+      />
       <AppNav role={profile?.role} displayName={displayName} />
 
       <section className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
@@ -434,7 +472,7 @@ export default async function DashboardPage({
           <div className="grid min-w-0 gap-3 rounded-2xl bg-white/10 p-4 text-sm">
             <div className="min-w-0">
               <p className="text-slate-300">Rol</p>
-              <p className="break-words text-lg font-semibold">{profile?.role ?? 'SIN ROL'}</p>
+              <p className="break-words text-lg font-semibold">{profile?.role === 'PENDIENTE' ? 'Sin rol asignado' : profile?.role ?? 'SIN ROL'}</p>
             </div>
             <div className="min-w-0">
               <p className="text-slate-300">{institutionLabel}</p>
@@ -573,6 +611,7 @@ export default async function DashboardPage({
             </div>
 
             {currentStudent.canLeaveAlone ? (
+              <div className="space-y-4">
               <form
                 action={confirmStudentSelfExitFromForm}
                 className="rounded-2xl border border-slate-200 p-4 sm:p-5"
@@ -622,6 +661,49 @@ export default async function DashboardPage({
                   </div>
                 </div>
               </form>
+
+              <form
+                action={createStudentExitAuthorizationRequestFromForm}
+                className="rounded-2xl border border-sky-200 bg-sky-50/50 p-4 sm:p-5"
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-lg font-semibold text-slate-900">Solicitar retiro</h3>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Aunque puedas salir solo, también puedes pedir que un apoderado te retire. Se avisará a tus apoderados y el primero que acepte iniciará el retiro con PIN dual.
+                    </p>
+                    {!guardianLinks.length ? (
+                      <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                        No puedes iniciar un retiro porque no tienes apoderados vinculados.
+                      </p>
+                    ) : null}
+                  </div>
+                  <PendingSubmitButton
+                    disabled={!currentStudent.isInInstitution || !guardianLinks.length || studentHasPendingAuthorizationRequest}
+                    pendingLabel="Enviando..."
+                    className="rounded-xl bg-sky-700 px-4 py-3 text-sm font-semibold text-white hover:bg-sky-800 disabled:cursor-not-allowed disabled:bg-sky-300"
+                  >
+                    {studentHasPendingAuthorizationRequest ? 'Solicitud en curso' : 'Solicitar retiro'}
+                  </PendingSubmitButton>
+                </div>
+                {studentHasPendingAuthorizationRequest ? (
+                  <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    Solicitud en curso. Tus apoderados ya fueron notificados; el primero que acepte iniciará el retiro.
+                  </p>
+                ) : null}
+                <label htmlFor="pickup_reason" className="mt-4 block text-sm font-medium text-slate-700">
+                  Motivo opcional
+                </label>
+                <textarea
+                  id="pickup_reason"
+                  name="reason"
+                  rows={2}
+                  disabled={studentHasPendingAuthorizationRequest}
+                  placeholder="Ej: salida por trámite familiar"
+                  className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                />
+              </form>
+              </div>
             ) : (
               <form
                 action={createStudentExitAuthorizationRequestFromForm}
@@ -633,8 +715,8 @@ export default async function DashboardPage({
                       Solicitud de autorización de salida
                     </h3>
                     <p className="mt-1 text-sm text-slate-500">
-                      Pide autorización a tu Apoderado Primario. Si acepta, ambos deberán presentar sus PIN en portería
-                      antes de que se registre el retiro.
+                      Se notificará a tus apoderados vinculados. El primero que acepte iniciará el retiro y ambos deberán
+                      presentar sus PIN en portería antes de registrar la salida.
                     </p>
                     <p className="mt-2 text-sm text-slate-500">
                       Estado actual:{' '}
@@ -644,7 +726,7 @@ export default async function DashboardPage({
                     </p>
                   </div>
                   <PendingSubmitButton
-                    disabled={!currentStudent.isInInstitution || studentHasPendingAuthorizationRequest}
+                    disabled={!currentStudent.isInInstitution || !guardianLinks.length || studentHasPendingAuthorizationRequest}
                     pendingLabel="Enviando..."
                     className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
                   >
@@ -655,7 +737,11 @@ export default async function DashboardPage({
                 </div>
                 {studentHasPendingAuthorizationRequest ? (
                   <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    Ya existe una solicitud de retiro vigente. Espera la respuesta de tu Apoderado Primario antes de crear una nueva.
+                    Solicitud en curso. Tus apoderados ya fueron notificados; el primero que acepte iniciará el retiro.
+                  </p>
+                ) : !guardianLinks.length ? (
+                  <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    No puedes iniciar un retiro porque no tienes apoderados vinculados.
                   </p>
                 ) : null}
                 <label htmlFor="exit_reason" className="mt-4 block text-sm font-medium text-slate-700">
@@ -748,6 +834,7 @@ export default async function DashboardPage({
                   if (!student) return null;
                   const institutionName = getInstitutionName(student.institutions);
                   const activePickup = activePickupByStudentId.get(student.id);
+                  const hasActiveExitRequest = Boolean(activePickup) || activePickupStudentIds.has(student.id) || pendingAuthorizationStudentIds.has(student.id);
 
                   return (
                     <article key={item.id} className="min-w-0 rounded-2xl border border-slate-200 p-4 sm:p-5">
@@ -777,11 +864,11 @@ export default async function DashboardPage({
                           <form action={createGuardianPickupRequestFromForm} className="sm:w-auto">
                             <input type="hidden" name="student_id" value={student.id} />
                             <PendingSubmitButton
-                              disabled={Boolean(activePickup)}
+                              disabled={hasActiveExitRequest}
                               pendingLabel="Notificando..."
                               className="w-full rounded-xl bg-sky-700 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-800 disabled:cursor-not-allowed disabled:bg-sky-300 sm:w-auto"
                             >
-                              {activePickup ? 'Retiro en curso' : 'Notificar retiro'}
+                              {hasActiveExitRequest ? 'Retiro en curso' : 'Notificar retiro'}
                             </PendingSubmitButton>
                           </form>
                         ) : null}
@@ -806,7 +893,7 @@ export default async function DashboardPage({
           </section>
 
           <section className="min-w-0 space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 md:rounded-3xl">
-            {profile?.role === 'APODERADO' ? (
+            {['APODERADO', 'RETIRADOR_AUTORIZADO'].includes(profile?.role ?? '') ? (
               <div className="space-y-4 border-b border-slate-200 pb-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
